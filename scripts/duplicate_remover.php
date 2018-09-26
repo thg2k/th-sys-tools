@@ -1,3 +1,4 @@
+#!/usr/bin/php
 <?php
 /**
  * ...
@@ -23,16 +24,16 @@ class DuplicateRemover {
   /**
    * ...
    *
-   * @var string
+   * @var array
    */
-  private $_path;
+  private $_paths;
 
   /**
    * Resolved real path
    *
-   * @var string
+   * @var array
    */
-  private $_real_path;
+  private $_real_paths;
 
   /**
    * ...
@@ -70,6 +71,49 @@ class DuplicateRemover {
   /**
    * ...
    *
+   * @param array $path ...
+   * @param bool $nocache ...
+   */
+  public function __construct(array $paths, $nocache = false) {
+    /* check that the structural data is correct */
+    foreach ($paths as $path) {
+      if (!is_string($path) || ($path == ""))
+        throw new DuplicateRemoverException(
+            "Invalid paths format, must be all non-empty strings");
+    }
+
+    /* check for access */
+    $this->_paths = array();
+    $this->_real_paths = array();
+    foreach ($paths as $path) {
+      if (!file_exists($path))
+        throw new DuplicateRemoverException(
+            "Invalid path \"$path\": File not found");
+      if (!is_dir($path))
+        throw new DuplicateRemoverException(
+            "Invalid path \"$path\": Not a directory");
+
+      $real_path = $path;
+
+      $this->_paths[] = $path;
+      $this->_real_paths[] = realpath($path);
+
+      $this->_dbg("Resolved real path: " . $real_path);
+    }
+
+    if ($nocache)
+      return;
+
+    for ($i = 0; $i < count($this->_paths); $i++) {
+      if (!$this->_load_metadata_cache($i))
+        $this->_dbg("Metadata cache not available " .
+                    "for path [$i] \"" . $this->_paths[$i] . "\"");
+    }
+  }
+
+  /**
+   * ...
+   *
    * @param string $message ...
    */
   private function _dbg($message) {
@@ -79,9 +123,10 @@ class DuplicateRemover {
   /**
    * ...
    *
+   * @param int $path_idx ...
    * @return string ...
    */
-  private function _get_cache_file() {
+  private function _get_cache_file(int $path_idx) {
     $home = getenv("HOME");
     if ($home == "")
       return false;
@@ -99,24 +144,28 @@ class DuplicateRemover {
       return false;
 
     /* metadata index */
-    $cache_file = $cache_local . DIRECTORY_SEPARATOR . md5($this->_real_path);
+    $cache_file = $cache_local . DIRECTORY_SEPARATOR . md5($this->_real_paths[$path_idx]);
 
     return $cache_file;
   }
 
   /**
    * ...
+   *
+   * @param string $path_idx ...
+   * @return bool ...
    */
-  private function _save_metadata_cache(): bool {
-    $cachefile = $this->_get_cache_file();
+  private function _save_metadata_cache(int $path_idx): bool {
+    $cachefile = $this->_get_cache_file($path_idx);
     if ($cachefile === false)
       return false;
 
     $this->_dbg("Saving metadata cache to " . $cachefile);
     $datarec = array(
       'metadata_ver' => self::METADATA_VER,
+      'path' => $this->_real_paths[$path_idx],
       'timestamp' => time(),
-      'index' => $this->_index);
+      'index' => $this->_index[$path_idx]);
     file_put_contents($cachefile, serialize($datarec));
 
     return true;
@@ -124,9 +173,11 @@ class DuplicateRemover {
 
   /**
    * ...
+   *
+   * @param int $path_idx ...
    */
-  private function _load_metadata_cache(): bool {
-    $cachefile = $this->_get_cache_file();
+  private function _load_metadata_cache($path_idx): bool {
+    $cachefile = $this->_get_cache_file($path_idx);
     if ($cachefile === false) {
       $this->_dbg("Metadata cache: Couldn't determine cache file");
       return false;
@@ -146,31 +197,9 @@ class DuplicateRemover {
       return false;
     }
 
-    $this->_index = $datarec['index'];
+    $this->_index[$path_idx] = $datarec['index'];
 
     return true;
-  }
-
-  /**
-   * ...
-   *
-   * @param string $path ...
-   */
-  public function __construct(string $path) {
-    if (!file_exists($path))
-      throw new DuplicateRemoverException(
-          "Invalid path \"$path\": File not found");
-    if (!is_dir($path))
-      throw new DuplicateRemoverException(
-          "Invalid path \"$path\": Not a directory");
-
-    $this->_path = $path;
-    $this->_real_path = realpath($path);
-
-    $this->_dbg("Resolved real path: " . $this->_real_path);
-
-    if (!$this->_load_metadata_cache())
-      $this->_dbg("Metadata cache not available");
   }
 
   /**
@@ -179,18 +208,20 @@ class DuplicateRemover {
    * @param string $subpath ...
    * @return bool ...
    */
-  public function _index_internal(string $subpath = null): bool {
-    $this->_dbg("Processing subpath=$subpath");
+  public function _index_internal(int $path_idx, string $subpath = null): bool {
+    $this->_dbg("Processing subpath=$subpath [$path_idx]");
 
-    $fullpath = $this->_path .
+    $fullpath = $this->_paths[$path_idx] .
         ($subpath != "" ? DIRECTORY_SEPARATOR . $subpath : "");
 
+    /* open target directory */
     $dh = opendir($fullpath);
     if ($dh === false) {
       $this->_dbg("Failed to open path: $fullpath");
       return false;
     }
 
+    /* read all the files */
     $_local_files = array();
     while ($file = readdir($dh)) {
       if (($file == ".") || ($file == ".."))
@@ -200,6 +231,7 @@ class DuplicateRemover {
     closedir($dh);
     sort($_local_files);
 
+    /* process all the sorted files */
     foreach ($_local_files as $file) {
       $subpathfile =
             ($subpath != "" ? $subpath . DIRECTORY_SEPARATOR : "") . $file;
@@ -211,7 +243,7 @@ class DuplicateRemover {
         if (($file == ".svn") || ($file == ".git"))
           continue;
 
-        $this->_index_internal($subpathfile);
+        $this->_index_internal($path_idx, $subpathfile);
       }
       else {
         $stat = stat($fullpathfile);
@@ -220,21 +252,27 @@ class DuplicateRemover {
           continue;
         }
 
+        /* ignore empty files */
         if ($stat['size'] == 0)
           continue;
 
         // $this->_dbg(".. found " . $fullpathfile . " -> " . $stat['size']);
-        $this->_index[$subpathfile] = array(
+        $this->_index[$path_idx][$subpathfile] = array(
             'mtime' => $stat['mtime'],
             'size' => $stat['size'],
             'md5' => null);
 
         /* cache a pointer to this entry based on the size */
-        $this->_cache_sizes[$stat['size']][] = $subpathfile;
+        $this->_cache_sizes[$stat['size']][] = $path_idx . ":" . $subpathfile;
       }
     }
 
     return true;
+  }
+
+  private function _parse_vfile(string $vfile): array {
+    $p = strpos($vfile, ":");
+    return array((int) substr($vfile, 0, $p), substr($vfile, $p + 1));
   }
 
   /**
@@ -245,38 +283,43 @@ class DuplicateRemover {
     $prev_index = $this->_index;
 
     /* rebuild the index */
-    $this->_dbg("Indexing directory...");
-    $this->_index = array();
-    $this->_index_internal();
-    $this->_duplicates = 0;
+    foreach (array_keys($this->_paths) as $path_idx) {
+      $this->_dbg("Indexing directory...");
+      $this->_index[$path_idx] = array();
+      $this->_index_internal($path_idx);
+      $this->_duplicates = 0;
+    }
 
     /* compute the md5 for those who have potential duplicates */
-    foreach ($this->_cache_sizes as $files) {
-      if (count($files) <= 1)
+    foreach ($this->_cache_sizes as $vfiles) {
+      if (count($vfiles) <= 1)
         continue;
 
-      foreach ($files as $file) {
-        if (isset($prev_index[$file]['md5']) &&
-            ($prev_index[$file]['size'] == $this->_index[$file]['size']) &&
-            ($prev_index[$file]['mtime'] == $this->_index[$file]['mtime'])) {
+      foreach ($vfiles as $vfile) {
+        list($path_idx, $file) = $this->_parse_vfile($vfile);
+        if (isset($prev_index[$path_idx][$file]['md5']) &&
+            ($prev_index[$path_idx][$file]['size'] == $this->_index[$path_idx][$file]['size']) &&
+            ($prev_index[$path_idx][$file]['mtime'] == $this->_index[$path_idx][$file]['mtime'])) {
           $this->_dbg("using cached md5 for $file");
-          $md5sum = $prev_index[$file]['md5'];
+          $md5sum = $prev_index[$path_idx][$file]['md5'];
         }
         else {
           $this->_dbg("calculating md5 for $file...");
-          $fullpathfile = $this->_path . DIRECTORY_SEPARATOR . $file;
+          $fullpathfile = $this->_paths[$path_idx] . DIRECTORY_SEPARATOR . $file;
           $md5sum = md5_file($fullpathfile);
         }
 
-        $this->_index[$file]['md5'] = $md5sum;
-        $this->_cache_md5s[$md5sum][] = $file;
+        $this->_index[$path_idx][$file]['md5'] = $md5sum;
+        $this->_cache_md5s[$md5sum][] = $vfile;
         if (count($this->_cache_md5s[$md5sum]) == 2)
           $this->_duplicates++;
       }
     }
 
     /* save the metadata cache for future use */
-    $this->_save_metadata_cache();
+    foreach (array_keys($this->_paths) as $path_idx) {
+      $this->_save_metadata_cache($path_idx);
+    }
   }
 
   /**
@@ -284,31 +327,35 @@ class DuplicateRemover {
    */
   public function interactivePrompt(): void {
     $cnt = 0;
-    foreach ($this->_cache_md5s as $md5 => $files) {
-      if (count($files) <= 1)
+    foreach ($this->_cache_md5s as $md5 => $vfiles) {
+      if (count($vfiles) <= 1)
         continue;
       $cnt++;
 
-      print "\n\n[$cnt/" . $this->_duplicates . "] Found " . count($files) . " duplicates!\n";
-      foreach ($files as $idx => $file) {
-        print "  [" . ($idx + 1) . "]  $file\n";
+      print "\n\n[$cnt/" . $this->_duplicates . "] Found " . count($vfiles) . " duplicates!\n";
+      foreach ($vfiles as $idx => $vfile) {
+// var_dump($vfile);
+        list($path_idx, $file) = $this->_parse_vfile($vfile);
+        print "  [" . ($idx + 1) . "]  " . $this->_paths[$path_idx] . " >> " . $file . "\n";
       }
       do {
-        print "Enter which to KEEP [1-" . count($files) . "X]: ";
+        print "Enter which to KEEP [1-" . count($vfiles) . "X]: ";
         $choice = rtrim(fgets(STDIN), "\r\n");
         if (!preg_match('/^(\d*|X)$/', $choice))
           continue;
 
         /* convert to integer */
         $choice = ($choice == "X" ? -1 : intval($choice));
-        if ($choice > count($files))
+        if ($choice > count($vfiles))
           continue;
 
         if ($choice) {
-          foreach ($files as $idx => $xfile) {
+          foreach ($vfiles as $idx => $vxfile) {
+            list($path_idx, $xfile) = $this->_parse_vfile($vxfile);
+
             if ($idx == ($choice - 1))
               continue;
-            $real_xfile = $this->_real_path . DIRECTORY_SEPARATOR . $xfile;
+            $real_xfile = $this->_real_paths[$path_idx] . DIRECTORY_SEPARATOR . $xfile;
             print ".. deleting $real_xfile\n";
             unlink($real_xfile);
           }
@@ -326,14 +373,22 @@ class DuplicateRemover {
 
 
 if ($argc < 2) {
-  fprintf(STDERR, "Usage: %s <path>\n", $argv[0]);
+  fprintf(STDERR, "Usage: %s [-nocache] <path> [path...]\n", $argv[0]);
   exit(1);
 }
 
-$path = $argv[1];
+$opt_nocache = false;
+$paths = array();
 
-$dups = new DuplicateRemover($path);
+for ($i = 1; $i < $argc; $i++) {
+  if ($argv[$i] == "-nocache") {
+    $opt_nocache = true;
+    continue;
+  }
+  $paths[] = $argv[$i];
+}
+
+$dups = new DuplicateRemover($paths, $opt_nocache);
 
 $dups->scan();
 $dups->interactivePrompt();
-
