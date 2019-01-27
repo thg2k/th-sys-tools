@@ -237,21 +237,23 @@ class DuplicateRemover {
             ($subpath != "" ? $subpath . DIRECTORY_SEPARATOR : "") . $file;
       $fullpathfile = $fullpath . DIRECTORY_SEPARATOR . $file;
 
-      if (is_dir($fullpathfile)) {
+      print "== $fullpathfile\n";
+      $stat = @lstat($fullpathfile);
+      if ($stat === false)
+        die("FAILED TO STAT $fullpathfile\n");
+      $stat_m = $stat['mode'] & 0xf000;
+
+      switch ($stat_m) {
+      case 0x4000: // S_IFDIR
         /* git and subversion are known to keep duplicate copies, so
          * we can just ignore them */
         if (($file == ".svn") || ($file == ".git"))
           continue;
 
         $this->_index_internal($path_idx, $subpathfile);
-      }
-      else {
-        $stat = stat($fullpathfile);
-        if (!$stat) {
-          die("FAILED TO STAT $fullpathfile");
-          continue;
-        }
+        break;
 
+      case 0x8000: // S_IFREG
         /* ignore empty files */
         if ($stat['size'] == 0)
           continue;
@@ -264,6 +266,14 @@ class DuplicateRemover {
 
         /* cache a pointer to this entry based on the size */
         $this->_cache_sizes[$stat['size']][] = $path_idx . ":" . $subpathfile;
+        break;
+
+      case 0xa000: // S_IFLNK
+        $this->_dbg("Ignoring symlink: $file");
+        break;
+
+      default:
+        die("UNKNOWN FILE MODE " . dechex($stat_m));
       }
     }
 
