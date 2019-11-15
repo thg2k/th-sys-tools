@@ -1,6 +1,6 @@
 
 alias odx='od -t x1c'
-alias odx="od -t x1c"
+alias pico='nano'
 
 th_diff() {
   diff -U 20 $@ | colordiff | less -R
