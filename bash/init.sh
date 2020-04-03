@@ -1,5 +1,8 @@
 _th_sys_tools_root=$(dirname $(dirname ${BASH_SOURCE[0]}))
-echo "Loading th-sys-tools v0.1 in $_th_sys_tools_root"
+if [ -n "$PS1" ]
+then
+  echo "Loading th-sys-tools v0.1.1 in $_th_sys_tools_root"
+fi
 
 export HISTSIZE=100000
 export HISTFILESIZE=100000
