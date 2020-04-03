@@ -40,6 +40,36 @@ mysql_dropall() {
   echo "Done."
 }
 
+mysql_choose() {
+  if [ ! -f $HOME/.my.cnf ]
+  then
+    echo "Error: Cannot find configuration file ~/.my.cnf" >&2
+    return 1;
+  fi
+
+  # solution with mapfile, i need to prepend the DEFAULT:
+  #mapfile -t my_cfgs_suffixes < <(grep -oP '(?<=\[client)(\..*)(?=\])' $HOME/.my.cnf)
+  #my_cfgs_suffixes=(DEFAULT "${arr[@]}")
+
+  # solution with manual configuration, only supports tokens:
+  my_cfgs_suffixes=("" $(grep -oP '(?<=\[client)(\..*)(?=\])' $HOME/.my.cnf))
+
+  if [ ${#my_cfgs_suffixes[@]} -gt 1 ]
+  then
+    echo "I found ${#my_cfgs_suffixes[@]} possible MySQL configurations:"
+    for ((i = 0; i < ${#my_cfgs_suffixes[@]}; i++))
+    do
+      echo "  $i  ${my_cfgs_suffixes[$i]:-DEFAULT}"
+    done
+    read -p "Which configuration you want to activate? [0-$((i-1))] "
+    export MYSQL_GROUP_SUFFIX=${my_cfgs_suffixes[$REPLY]}
+    echo "Exported MYSQL_GROUP_SUFFIX=$MYSQL_GROUP_SUFFIX"
+  else
+    echo "Only DEFAULT configuration available, skipping."
+  fi
+}
+
+
 #list_images() {
 #  [ -z "$1" ] && return
 #  identify $@ | sed -e 's/\[[0-9]\+\]//' | awk '{ printf "%-30s %s\n", $1, $3 }'
