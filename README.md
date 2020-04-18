@@ -1,5 +1,7 @@
 # “Th” System Tools
 
+This is a collection of system command line tools that are designed to be **easy to audit** and **non-invasive** to make your daily life as a sysadmin or devops easier.
+
 - [1. Introduction](#1-introduction)
 - [2. Installation](#2-installation)
   * [2.1. Manual installation - Local](#21-manual-installation---local)
@@ -13,9 +15,13 @@
 
 # 1. Introduction
 
-If you are an old school sysadmin like me (the author), you will find yourself facing the same problems over and over while managing vanilla systems as CentOS 7 that do not contain any of those fancy systems that take manual tasks off your hands (which usually comes together with the ultimate control of your servers).
+If you are an old school sysadmin like me, you will find yourself facing the same difficulties over and over when managing vanilla systems as CentOS 7 that do not offer certain conveniences.
 
-This package contains simple non-invasive scripts and tools to ease your pain without doing things for your.
+If you are operating from a remote console that offers plenty of screen space (i.e. columns, *precious columns*), you will find that many basic linux command line commands are designed for 80-columns legacy screen, which make them difficult to operate.
+
+That is, of course, if you are not using those fancy complex systems that take manual tasks off your hands (and usually as well as the ultimate control of your servers).
+
+This package contains **simple**, **non-invasive** scripts and tools to ease your pain without doing things without you knowing it, and without learning new commands as they mimick the old school commands.
 
 
 # 2. Installation
@@ -35,9 +41,11 @@ Modify your `~/.bashrc` to include the source the init script:
 
 ## 2.2. Manual installation - Global (recommended)
 
-Just clone this repository and symlink symlink clone this repository and symlink 
-in your login shell, you can either modify your `~/.bashrc` to 
+Just clone this repository and symlink the `bash/init.sh` file in your `/etc/profile.d` folder like this (assumes you cloned this into `/opt/th-sys-tools`):
 
+```bash
+  ln -sf /opt/th-sys-tools/bash/init.sh /etc/profile.d/th-sys-tools.sh
+```
 
 ## 2.3. Automatic installation
 
@@ -48,11 +56,7 @@ in your login shell, you can either modify your `~/.bashrc` to
 
 ## 3.1. `bash` folder
 
-Contains the `init.sh` script that needs to be included a bash source (e.g. as in `. /path/to/init.sh`), or, better, symlink it from your `/etc/profile.d` folder as in:
-
-```bash
-  ln -sf /opt/th-sys-tools/bash/init.sh /etc/profile.d/th-sys-tools.sh
-```
+Contains the `init.sh` script to initialize your bash shell and the `funcs.sh` file that contains simple shell functions and aliases.
 
 ## 3.2. `bin` and `sbin` folders
 
