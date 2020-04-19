@@ -1,4 +1,6 @@
-_th_sys_tools_root=$(dirname $(dirname ${BASH_SOURCE[0]}))
+_th_sys_tools_root=$(readlink -f ${BASH_SOURCE[0]})
+_th_sys_tools_root=${_th_sys_tools_root%/bash/init.sh}
+
 if [ -n "$PS1" ]
 then
   echo "Loading th-sys-tools v0.1.1 in $_th_sys_tools_root"

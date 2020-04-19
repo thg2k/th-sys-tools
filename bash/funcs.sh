@@ -2,19 +2,28 @@
 alias odx='od -t x1c'
 alias pico='nano'
 
-th_diff() {
+thdiff() {
   diff -U 20 $@ | colordiff | less -R
 }
 
-th_du() {
+thdu() {
   du -h --max-depth=1 | sort -h
 }
-
 
 svn_diff_review() {
   svn diff --diff-cmd=diff -x -U25 | colordiff | less -r
 }
 
+alias mc='mysql_choose'
+
+#list_images() {
+#  [ -z "$1" ] && return
+#  identify $@ | sed -e 's/\[[0-9]\+\]//' | awk '{ printf "%-30s %s\n", $1, $3 }'
+#}
+list_images() {
+  [ -z "$1" ] && return;
+  identify -format "%wx%h   %f\n" "$@"
+}
 
 mysql_dropall() {
   [ -n "$1" ] || return 1
@@ -67,14 +76,4 @@ mysql_choose() {
   else
     echo "Only DEFAULT configuration available, skipping."
   fi
-}
-
-
-#list_images() {
-#  [ -z "$1" ] && return
-#  identify $@ | sed -e 's/\[[0-9]\+\]//' | awk '{ printf "%-30s %s\n", $1, $3 }'
-#}
-list_images() {
-  [ -z "$1" ] && return;
-  identify -format "%wx%h   %f\n" "$@"
 }
