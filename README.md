@@ -74,6 +74,7 @@ Contains the actual implementation.
 | mysql_dropall  | bash          | Ever noticed that mysql does not provide a way to drop all tables from a database? This commands queries your database structure and **drops all tables and views** so, *use carefully*. |
 | piptables      | scripts       | PHP-wrapped `iptables` command that colors and reformats the output nicely. |
 | pdocker        | scripts       | PHP-wrapped `docker` command that colors and reformats the output nicely. |
+| pdf            | scripts       | PHP-wrapped `df` command that colors and reformats the output nicely. |
 | tail_http_access_log   | scripts | Tails a standard *combined* httpd `access_log` with coloring and formatting. |
 | tail_http_error_log    | scripts | Tails a standard httpd `error_log` with coloring and formatting. |
 | tail_mysql_general_log | scripts | Tails the MySQL `general_log` with coloring and formatting, allows to isolate DML queries. Useful to inspect the database activity of a rogue web app that doesn't allow a reliable built-in way to do so at application level. |
