@@ -109,7 +109,7 @@ $fmt_http_status = function($status) {
  *   "100M"
  *   "999M"
  */
-$fmt_sent_size = function(int $size) {
+$fmt_sent_size = function($size) {
   if (!$size)
     return "  - ";
 
@@ -134,6 +134,43 @@ $fmt_sent_size = function(int $size) {
     return sprintf("\e[1m%3.1fM\e[m", $size);
 
   return sprintf("\e[1m%3.0fM\e[m", $size);
+};
+
+$fmt_duration = function($duration) {
+  // fmts:
+  //   "999ms"
+  //   "99.9s"
+  //   "9999s"
+  //   "   - "
+  if (!$duration)
+    return "   - ";
+
+  /* formatting space-fixed */
+  if ($duration <= 999) {
+    /* format: 999ms */
+    $fmt = sprintf("%3dms", $duration);
+  }
+  elseif ($duration <= 99999) {
+    /* format: 99.9s */
+    $fmt = sprintf("%4.1fs", $duration / 1000);
+  }
+  else {
+    /* format: 999s */
+    $fmt = sprintf("%3ds", (int) round($duration / 1000));
+  }
+
+  /* apply coloring */
+  if ($duration > 1000) {
+    $fmt = "\e[31m" . $fmt . "\e[m";
+  }
+  elseif ($duration > 300) {
+    $fmt = "\e[33m" . $fmt . "\e[m";
+  }
+  // elseif ($duration > 100) {
+    // $fmt = "\e[1m" . $fmt . "\e[m";
+  // }
+
+  return $fmt;
 };
 
 $fmt_http_request = function($req) {
@@ -178,17 +215,9 @@ $trunc_console_line = function($line, $max_chars) {
 $current_date = null;
 while (($str = $tail->read()) !== false) {
 
-  // 81.202.254.26 WonderSeller TLSv1.2 [17/May/2018:00:58:13 +0200] "GET /sell/articles/cards HTTP/1.1" 200 98356 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"
-  if (!preg_match('{^' .
-        '(?P<ip>[^ ]+) ' .                                  // 81.202.254.26
-        '(?P<user>[^ ]+) ' .                                // WonderSeller
-        '(?P<proto>[^ ]+) ' .                               // TLSv1.2
-        '\[(?P<date>\d+/\w+/\d{4}):(?P<time>[0-9:]+) \+\d+\] ' .  // [17/May/2018:
-        '(?<req>"(?:\\\\.|[^"])*") ' .
-        '(?<http>\d+) (?<size>\d+|-) ' .
-        '(?<referer>"(?:\\\\.|[^"])*")? ' .
-        '(?<agent>"(?:\\\\.|[^"])*")$}', $str, $regp))
+  if (!($regp = WTools::parseAccessLog_th_lf_2($str)))
     goto err;
+  // var_dump($regp); exit();
 
   // filter out unwanted static data
 //    if (preg_match('{GET /dyndata|GET /d10m|GET /images|GET /admin}', $regp[4]))
@@ -212,19 +241,21 @@ while (($str = $tail->read()) !== false) {
   // - agent
 
   // format ipv6+nick on the same slot
-  $slot_1 = sprintf("%-20s %s", $regp['ip'], $regp['user']);
+  // 255.255.255.255 MyNickNameIsVeryLong
+  $slot_1 = sprintf("%-15s %s", $regp['ip'], $regp['user']);
 
   // print formatted line
-  //                1    2     3    4  5     6   7  8
-  $line = sprintf("%8s %-42s %-7s %s %s %-30s%s%s",
+  //                1   2     3    4  5  6  7    8 9
+  $line = sprintf("%8s %-42s %-7s %s %s %s %-40s%s%s",
       /* 1 */ $regp['time'],
       /* 2 */ $slot_1,
-      /* 3 */ ($regp['proto'] != "-" ? $regp['proto'] : "PLAIN"),
-      /* 4 */ $fmt_http_status($regp['http']),
-      /* 5 */ $fmt_sent_size((int) $regp['size']),
-      /* 6 */ $fmt_http_request($regp['req']),
-      /* 7 */ ($regp['referer'] != '"-"' ? "  \e[36m" . $regp['referer'] . "\e[m" : "  No referer"),
-      /* 8 */ ($regp['agent'] != '"-"' ? "  \e[35m" . $regp['agent'] . "\e[m" : "  No user agent"));
+      /* 3 */ ($regp['proto'] != "" ? $regp['proto'] : "PLAIN"),
+      /* 4 */ $fmt_http_status($regp['status']),
+      /* 5 */ $fmt_sent_size($regp['size']),
+      /* 6 */ $fmt_duration($regp['duration']),
+      /* 7 */ $fmt_http_request($regp['req']),
+      /* 8 */ ($regp['referer'] != "" ? "  \e[36m" . $regp['referer'] . "\e[m" : " (no referer)"),
+      /* 9 */ ($regp['agent'] != "" ? "  \e[35m" . $regp['agent'] . "\e[m" : "  (no agent)"));
 
   print WTools::truncConsoleLine($line, $opt_cols) . "\n";
   continue;
