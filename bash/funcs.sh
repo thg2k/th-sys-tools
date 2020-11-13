@@ -1,21 +1,75 @@
 
-alias odx='od -t x1c'
+##############################################################################
+# odx
+#
+# ...
+#
+alias odx='od -A x -t x1c'
+
+
+##############################################################################
+# pico
+#
+# Alias of 'nano'.
+#
 alias pico='nano'
 
+
+##############################################################################
+# passwd-ls
+#
+# Formatted content of /etc/passwd
+#
+passwd-ls() {
+  awk -F: '
+    BEGIN {
+      printf("---------------------+---+--------+--------+--------------------------------+----------------+-------------------\n");
+      printf("   USERNAME            x     UID      GID      HOME                             SHELL            NAME\n");
+      printf("---------------------+---+--------+--------+--------------------------------+----------------+-------------------\n");
+    } {
+      printf("%-20s | %-1s | %6d | %6d | %-30s | %-14s | %s\n", $1, $2, $3, $4, $6, $7, $5);
+    }
+    END {
+      printf("---------------------+---+--------+--------+--------------------------------+----------------+-------------------\n");
+    }' /etc/passwd
+}
+
+
+##############################################################################
+# thdiff
+#
+# ...
+#
 thdiff() {
   diff -U 20 $@ | colordiff | less -R
 }
 
+
+##############################################################################
+# thdu
+#
+# Executes 'du' with one level of depth
+#
 thdu() {
   du -h --max-depth=1 | sort -h
 }
 
+
+##############################################################################
+# svn_diff_review
+#
+# Colored version of 'svn diff' with pager support, similar to 'git log'.
+#
 svn_diff_review() {
-  svn diff --diff-cmd=diff -x -U25 | colordiff | less -r
+  svn diff --diff-cmd=diff -x -U25 $@ | colordiff | less -r
 }
 
-alias mc='mysql_choose'
 
+##############################################################################
+# list_images
+#
+# Lists all image files in the current folder with size
+#
 #list_images() {
 #  [ -z "$1" ] && return
 #  identify $@ | sed -e 's/\[[0-9]\+\]//' | awk '{ printf "%-30s %s\n", $1, $3 }'
@@ -25,6 +79,12 @@ list_images() {
   identify -format "%wx%h   %f\n" "$@"
 }
 
+
+##############################################################################
+# mysql_dropall
+#
+# Drops all tables and views in a database without the need for dropping the database.
+#
 mysql_dropall() {
   [ -n "$1" ] || return 1
   read -p "Are you sure you want to drop all tables from database \"$1\"? "
@@ -49,6 +109,12 @@ mysql_dropall() {
   echo "Done."
 }
 
+
+##############################################################################
+# mysql_choose
+#
+# Parses your '.my.cnf' file to select between configuration suffixes.
+#
 mysql_choose() {
   if [ ! -f $HOME/.my.cnf ]
   then
@@ -76,4 +142,59 @@ mysql_choose() {
   else
     echo "Only DEFAULT configuration available, skipping."
   fi
+}
+
+
+##############################################################################
+# mc
+#
+# Alias of 'mysql_choose'
+alias mc='mysql_choose'
+
+
+##############################################################################
+# git-manage
+#
+# Helps manage forked repositories by keeping your forked branches in sync.
+#
+git-manage() {
+  mgit_downstream=$1
+  mgit_upstream=$2
+  mgit_branch=$3
+  mgit_action=$4
+
+  if [ -z "$mgit_downstream" ]
+  then
+    echo "Usage: git-manage <downstream> <upstream> <branch> <action>" >&2
+    echo "" >&2
+    echo "Examples:" >&2
+    echo "  \$ git-manage my_company upstream funny_branch show-branch" >&2
+    echo "  \$ git-manage my_company upstream funny_branch push" >&2
+    echo "" >&2
+    return 1
+  fi
+
+  if [ -z "$mgit_branch" ]
+  then
+    git branch -a
+    return 0
+  fi
+
+  if [ -z "$mgit_action" ]
+  then
+    mgit_action="show-branch"
+  fi
+
+  case "$mgit_action" in
+    show-branch|show)
+      (set -x; git show-branch $mgit_downstream/$mgit_branch $mgit_upstream/$mgit_branch)
+      ;;
+    push)
+      (set -x; git push $mgit_downstream $mgit_upstream/$mgit_branch:$mgit_branch)
+      ;;
+    *)
+      echo "Error: Invalid action \"$mgit_action\"" >&2
+      return 1
+      ;;
+  esac
 }
