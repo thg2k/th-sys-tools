@@ -1,7 +1,12 @@
 #!/usr/bin/php
 <?php
 
-include __DIR__ . DIRECTORY_SEPARATOR . "wtools.inc.php";
+define("THSYSTOOLS_SHARED_PATH", "@@THSYSTOOLS_SHARED_PATH@@");
+
+if (substr(THSYSTOOLS_SHARED_PATH, 0, 1) != "@")
+  require THSYSTOOLS_SHARED_PATH . DIRECTORY_SEPARATOR . "wtools.inc.php";
+else
+  require __DIR__ . DIRECTORY_SEPARATOR . "wtools.inc.php";
 
 /**
  * ...
