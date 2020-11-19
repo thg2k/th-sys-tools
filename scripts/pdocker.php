@@ -1,8 +1,13 @@
 #!/usr/bin/php
 <?php
 
-
-function parse_aliases() {
+/**
+ * Parses the pdocker aliases file
+ *
+ * @return array<string, string> ...
+ */
+function parse_aliases()
+{
   $data = @file_get_contents("/opt/pdocker.txt");
   if ($data === false)
     return array();
@@ -31,11 +36,11 @@ function parse_aliases() {
 }
 
 $Aliases = parse_aliases();
-// var_dump($Aliases);
+// var_dump($Aliases); exit();
 
 $argv_copy = $argv;
-
 $prog_name = array_shift($argv_copy);
+
 $action = array_shift($argv_copy);
 if ($action == "image")
   $action .= " " . array_shift($argv_copy);
@@ -72,6 +77,75 @@ function manip(&$data) {
 
 // print "[+] Executing...\n";
 switch ($action) {
+case 'ps':
+  $data = shell_exec("docker ps -a");
+  $xlines = explode("\n", trim($data));
+
+  /* remove the headers */
+  array_shift($xlines);
+
+  /* print the headers */
+  $_ctrl_s = "\e[m";
+  $_ctrl_e = "\e[m";
+  $data = array();
+  $data[] = $_ctrl_s . "CONTAINER ID         IMAGE                  CREATED           STATUS                   PORTS                                 NAMES" . $_ctrl_e . "\n";
+
+  foreach ($xlines as $xline) {
+    /* we need to use smart parsing, there are spaces in that stuff */
+    $toks = preg_split('/\s{2,}/', $xline);
+    if (count($toks) == 6) {
+      $toks[6] = $toks[5];
+      $toks[5] = "";
+    }
+    if (count($toks) != 7)
+      exit("Bogus entry line: $xline\n");
+
+    /* manip the status (Created/Up/Exited) */
+    $_ctrl_s = "\e[m";
+    if (substr($toks[4], 0, 6) == "Exited") {
+      $_ctrl_s = "\e[31m";
+      $toks[4] = "Ex" . substr($toks[4], 7);
+    }
+    elseif (substr($toks[4], 0, 2) == "Up") {
+      $_ctrl_s = "\e[32m";
+    }
+    elseif (substr($toks[4], 0, 5) == "Creat") {
+      $_ctrl_s = "\e[33m";
+    }
+
+    /* manip the ports */
+    $_ports = preg_split('/, /', $toks[5]);
+    $_ports_by_if = array();
+    foreach ($_ports as $port) {
+      if (preg_match('{^([0-9.]+):(\d+)->(\d+)/(tcp|udp)$}', $port, $regp))
+        $_ports_by_if["[" . $regp[1] . "]:" . $regp[4]][] = $regp[2] . "->" . $regp[3];
+      elseif (preg_match('{^(\d+)/(tcp|udp)$}', $port, $regp))
+        $_ports_by_if["[0.0.0.0]:" . $regp[2]][] = $regp[1] . "->" . $regp[1];
+      elseif ($port != "")
+        exit("Bogus ports: " . $toks[5] . "\n");
+    }
+    $_ports = array();
+    foreach ($_ports_by_if as $_if => $_if_ports) {
+      $_ports[$_if] = $_if . "{";
+      foreach ($_if_ports as $idx => $port) {
+        $_ports[$_if] .= ($idx > 0 ? ", " : "") . $port;
+      }
+      $_ports[$_if] .= "}";
+    }
+    // print " PORTS: " . $toks[5] . "  ==>  " . implode("; ", $_ports) . "\n"; continue;
+    $toks[5] = implode("; ", $_ports);
+
+    //                             ID     IMG   CREAT  STATUS PORTS  NAMES
+    $data[] = sprintf($_ctrl_s . "%-12s  %-25s  %-18s  %-20s %-40s %s" . $_ctrl_e . "\n",
+        $toks[0],  // container id
+        $toks[1],  // image name
+        $toks[3],  // created
+        $toks[4],  // uptime
+        $toks[5],  // ports
+        $toks[6]); // name
+  }
+  break;
+
 case 'parse':
   $data = file_get_contents("php://stdin");
   manip($data);
@@ -126,11 +200,10 @@ case 'image ls';
   break;
 
 default:
-  die("Invalid action \"$action\"");
+  die("Invalid action \"$action\"\n");
 }
 
   
 // print "[+] Reparsing...\n";
 
-
-print $data;
+print (is_array($data) ? implode("", $data) : $data);
