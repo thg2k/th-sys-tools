@@ -136,7 +136,7 @@ case 'ps':
     $toks[5] = implode("; ", $_ports);
 
     //                             ID     IMG   CREAT  STATUS PORTS  NAMES
-    $data[] = sprintf($_ctrl_s . "%-12s  %-25s  %-18s  %-20s %-40s %s" . $_ctrl_e . "\n",
+    $data[] = sprintf($_ctrl_s . "%-12s  %-25s  %-18s  %-20s %-40s \e[1m%s" . $_ctrl_e . "\n",
         $toks[0],  // container id
         $toks[1],  // image name
         $toks[3],  // created
