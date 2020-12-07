@@ -3,7 +3,7 @@ _th_sys_tools_root=${_th_sys_tools_root%/bash/init.sh}
 
 if [ -n "$PS1" ]
 then
-  echo "Loading th-sys-tools v0.2.0 in $_th_sys_tools_root"
+  echo "Loading th-sys-tools v0.2.1 in $_th_sys_tools_root"
 fi
 
 export HISTSIZE=100000

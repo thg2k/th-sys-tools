@@ -1,0 +1,152 @@
+#!/bin/bash
+
+set -eu
+
+cd /srv
+
+GLMANAGER_VERSION="v1"
+
+# Create "dist" config file for comparison
+if [ ! -e gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION ]
+then
+  rm -f gitlab_docker_manager.conf-dist-*
+  cat <<'_CONF_' >gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+GLMANAGER_CVER="GL1"
+
+GLMANAGER_IMAGE_VERSION="13.6.1"
+
+GLMANAGER_IMAGE_NAME="gitlab-ce:$GLMANAGER_IMAGE_VERSION-ce.0"
+
+GLMANAGER_SERVER_IP="1.2.3.4"
+
+GLMANAGER_HOSTNAME="git.abc.xyz"
+
+GLMANAGER_BACKUP_DIR="/mnt/gitlab-backups"
+_CONF_
+fi
+
+if [ ! -e gitlab_docker_manager.conf ]
+then
+  echo "Creating template config file '/srv/gitlab_docker_manager.conf'" >&2
+  cp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION gitlab_docker_manager.conf
+  echo "*** Please edit this file to proceed! ***" >&2
+  exit 1
+fi
+
+. gitlab_docker_manager.conf
+
+if [ "${GLMANAGER_CVER:-}" != "GL1" ]
+then
+  echo "Bad configuration file, please move it out to create a new one" >&2
+  exit 1
+fi
+
+if [ "$GLMANAGER_SERVER_IP" = "1.2.3.4" -o "$GLMANAGER_HOSTNAME" = "git.abc.xyz" ]
+then
+  echo "Please edit the config file '/srv/gitlab_docker_manager.conf' to proceed" >&2
+  exit 1
+fi
+
+echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')"
+echo
+
+if [ -z "${1:-}" -o "${1:-}" = "help" ]
+then
+  echo -e "Usage: $0 <production(prod)|foreground(fg)|maintenance(mnt)|backup(bk)|copydistconfig(cdc)|remove(rm)>\n" >&2
+  exit 1
+fi
+
+RUNTIME_MODE=$1
+shift
+
+xargs_info="
+      --name gitlab"
+
+xargs_hostname="
+      --hostname $GLMANAGER_HOSTNAME"
+
+xargs_publish_ports="
+      --publish $GLMANAGER_SERVER_IP:22:22/tcp
+      --publish $GLMANAGER_SERVER_IP:80:80/tcp
+      --publish $GLMANAGER_SERVER_IP:443:443/tcp"
+
+xargs_volumes_mount="
+      --volume /srv/gitlab/config:/etc/gitlab
+      --volume /srv/gitlab/data:/var/opt/gitlab
+      --volume /srv/gitlab/logs:/var/log/gitlab"
+
+xargs_ulimits="
+      --ulimit nproc=-1
+      --ulimit sigpending=62793"
+
+case "$RUNTIME_MODE" in
+  production|prod)
+    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in production mode..."
+    set -x
+    docker run \
+      $xargs_info \
+      $xargs_hostname \
+      $xargs_publish_ports \
+      $xargs_volumes_mount \
+      $xargs_ulimits \
+      --restart unless-stopped \
+      --detach \
+      gitlab/$GLMANAGER_IMAGE_NAME
+    ;;
+
+  foreground|fg)
+    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in foreground mode..."
+    set -x
+    docker run \
+      $xargs_info \
+      $xargs_hostname \
+      $xargs_publish_ports \
+      $xargs_volumes_mount \
+      $xargs_ulimits \
+      -it \
+      gitlab/$GLMANAGER_IMAGE_NAME
+    ;;
+
+  maintenance|mnt)
+    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in maintenance mode..."
+    set -x
+    docker run \
+      $xargs_info \
+      $xargs_hostname \
+      $xargs_publish_ports \
+      $xargs_volumes_mount \
+      $xargs_ulimits \
+      -it \
+      gitlab/$GLMANAGER_IMAGE_NAME \
+      /bin/bash
+    ;;
+
+  backup|bk)
+    fname="gitlab-backup-`date +%Y%m%d`.tar.gz"
+    fpath=$GLMANAGER_BACKUP_DIR/$fname
+    if [ -e "$fpath" ]
+    then
+      echo "Error: Output file '$fpath' already exists!" >&2
+      exit 1
+    fi
+    echo "[+++] Creating backup in '$fpath'..."
+    set -x
+    (cd /srv; tar zcf "$fpath" gitlab)
+    echo "[+++] Done."
+    ;;
+
+  copydistconfig|cdc)
+    xrunver=$(docker exec gitlab cat /opt/gitlab/embedded/service/gitlab-rails/VERSION)
+    fdistconf=/srv/gitlab/config/gitlab-dist-v$xrunver.rb
+    echo "[+++] Copying dist config v$xrunver to '$fdistconf'..."
+    docker cp gitlab:/opt/gitlab/etc/gitlab.rb.template $fdistconf
+    ;;
+
+  remove|rm)
+    docker rm gitlab
+    ;;
+
+  *)
+    echo "Error: Invalid action \"$RUNTIME_MODE\"" >&2
+    exit 1
+esac
