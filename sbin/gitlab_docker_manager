@@ -13,11 +13,11 @@ then
   cat <<'_CONF_' >gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
 GLMANAGER_CVER="GL1"
 
-GLMANAGER_IMAGE_VERSION="13.6.1"
+GLMANAGER_IMAGE_VERSION="x.y.z"
 
 GLMANAGER_IMAGE_NAME="gitlab-ce:$GLMANAGER_IMAGE_VERSION-ce.0"
 
-GLMANAGER_SERVER_IP="1.2.3.4"
+GLMANAGER_SERVER_IP="0.0.0.0"
 
 GLMANAGER_HOSTNAME="git.abc.xyz"
 
@@ -25,6 +25,7 @@ GLMANAGER_BACKUP_DIR="/mnt/gitlab-backups"
 _CONF_
 fi
 
+# Check for local configuration file
 if [ ! -e gitlab_docker_manager.conf ]
 then
   echo "Creating template config file '/srv/gitlab_docker_manager.conf'" >&2
@@ -32,58 +33,96 @@ then
   echo "*** Please edit this file to proceed! ***" >&2
   exit 1
 fi
-
 . gitlab_docker_manager.conf
 
+# Check that local configuration file has been edited
 if [ "${GLMANAGER_CVER:-}" != "GL1" ]
 then
   echo "Bad configuration file, please move it out to create a new one" >&2
   exit 1
 fi
 
-if [ "$GLMANAGER_SERVER_IP" = "1.2.3.4" -o "$GLMANAGER_HOSTNAME" = "git.abc.xyz" ]
+if [ "$GLMANAGER_IMAGE_VERSION" = "x.y.z" -o "$GLMANAGER_HOSTNAME" = "git.abc.xyz" ]
 then
   echo "Please edit the config file '/srv/gitlab_docker_manager.conf' to proceed" >&2
   exit 1
 fi
 
-echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')"
-echo
+echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')" >&2
+echo >&2
 
 if [ -z "${1:-}" -o "${1:-}" = "help" ]
 then
-  echo -e "Usage: $0 <production(prod)|foreground(fg)|maintenance(mnt)|backup(bk)|copydistconfig(cdc)|remove(rm)>\n" >&2
+  echo -e "Usage: $0 [-rm] <command> [args]" >&2
+  echo -e "" >&2
+  echo -e "Commands related to docker creation:" >&2
+  echo -e "    create(cc)            Creates the container without starting it" >&2
+  echo -e "    production(prod,bg)   Starts the production runtime as background docker" >&2
+  echo -e "    foreground(fg)        Starts the gitlab docker inside the console" >&2
+  echo -e "    maintenance(mnt)      Spawns a shell inside the container for maintenance" >&2
+  echo -e "    stop(s)               Stops the running container" >&2
+  echo -e "    remove(rm)            Removes the container" >&2
+  echo -e ""
+  echo -e "Commands related to maintenance:" >&2
+  echo -e "    backup(bk)            Creates a backup of the gitlab data" >&2
+  echo -e "    copydistconfig(cdc)   Copies the config template from the image" >&2
+  echo -e "    diffconfig(dc)        Shows diff for current local config" >&2
+  echo -e "    patchconfig(pc)       Patches the current local config with the actual version" >&2
+  echo -e "    backupconfig(bkc)     Creates a backup of the local config" >&2
+  echo -e "" >&2
   exit 1
 fi
 
 RUNTIME_MODE=$1
 shift
 
+# Support functions
+err() {
+  echo -en "\e[31;1mError: $1\e[m\n\n" >&2
+  exit 1
+}
+out() {
+  echo -en "\e[36;1m[+++] $1\e[m\n\n" >&2
+}
+cmd() {
+  echo -en "\e[33m+ $@\e[m\n" >&2
+  "$@"
+}
+
+# Common docker argument blocks
 xargs_info="
       --name gitlab"
-
 xargs_hostname="
       --hostname $GLMANAGER_HOSTNAME"
-
 xargs_publish_ports="
       --publish $GLMANAGER_SERVER_IP:22:22/tcp
       --publish $GLMANAGER_SERVER_IP:80:80/tcp
       --publish $GLMANAGER_SERVER_IP:443:443/tcp"
-
 xargs_volumes_mount="
       --volume /srv/gitlab/config:/etc/gitlab
       --volume /srv/gitlab/data:/var/opt/gitlab
       --volume /srv/gitlab/logs:/var/log/gitlab"
-
 xargs_ulimits="
       --ulimit nproc=-1
       --ulimit sigpending=62793"
 
+# Main execution
 case "$RUNTIME_MODE" in
-  production|prod)
-    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in production mode..."
-    set -x
-    docker run \
+  create|cc)
+    out "Creating GITLAB docker container using image '$GLMANAGER_IMAGE_NAME'..."
+    cmd docker create \
+      $xargs_info \
+      $xargs_hostname \
+      $xargs_publish_ports \
+      $xargs_volumes_mount \
+      $xargs_ulimits \
+      --restart unless-stopped \
+      gitlab/$GLMANAGER_IMAGE_NAME
+    ;;
+
+  production|prod|bg)
+    out "Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in production mode..."
+    cmd docker run \
       $xargs_info \
       $xargs_hostname \
       $xargs_publish_ports \
@@ -95,9 +134,8 @@ case "$RUNTIME_MODE" in
     ;;
 
   foreground|fg)
-    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in foreground mode..."
-    set -x
-    docker run \
+    out "Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in foreground mode..."
+    cmd docker run \
       $xargs_info \
       $xargs_hostname \
       $xargs_publish_ports \
@@ -108,9 +146,8 @@ case "$RUNTIME_MODE" in
     ;;
 
   maintenance|mnt)
-    echo "[+++] Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in maintenance mode..."
-    set -x
-    docker run \
+    out "Starting GITLAB docker image '$GLMANAGER_IMAGE_NAME' in maintenance mode..."
+    cmd docker run \
       $xargs_info \
       $xargs_hostname \
       $xargs_publish_ports \
@@ -121,32 +158,58 @@ case "$RUNTIME_MODE" in
       /bin/bash
     ;;
 
-  backup|bk)
-    fname="gitlab-backup-`date +%Y%m%d`.tar.gz"
-    fpath=$GLMANAGER_BACKUP_DIR/$fname
-    if [ -e "$fpath" ]
-    then
-      echo "Error: Output file '$fpath' already exists!" >&2
-      exit 1
-    fi
-    echo "[+++] Creating backup in '$fpath'..."
-    set -x
-    (cd /srv; tar zcf "$fpath" gitlab)
-    echo "[+++] Done."
-    ;;
-
-  copydistconfig|cdc)
-    xrunver=$(docker exec gitlab cat /opt/gitlab/embedded/service/gitlab-rails/VERSION)
-    fdistconf=/srv/gitlab/config/gitlab-dist-v$xrunver.rb
-    echo "[+++] Copying dist config v$xrunver to '$fdistconf'..."
-    docker cp gitlab:/opt/gitlab/etc/gitlab.rb.template $fdistconf
+  stop|s)
+    cmd docker stop -t 120 gitlab
     ;;
 
   remove|rm)
-    docker rm gitlab
+    cmd docker rm gitlab
+    ;;
+
+  backup|bk)
+    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
+    [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
+    fpath="$GLMANAGER_BACKUP_DIR/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz"
+    [ -e "$fpath" ] && err "Output file '$fpath' already exists!"
+    out "Creating backup in '$fpath'..."
+    cmd pushd /srv >/dev/null
+    cmd tar zcf "$fpath" gitlab
+    cmd popd >/dev/null
+    ;;
+
+  copydistconfig|cdc)
+    xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
+    fdistconf="/srv/gitlab/config/gitlab-dist-v$xrunver.rb"
+    out "[+++] Copying dist config v$xrunver to '$fdistconf'..."
+    cmd docker cp gitlab:/opt/gitlab/etc/gitlab.rb.template $fdistconf
+    cmd sed -i -e '/GitLab configuration settings/a ## @TEMPLATE_VERSION '$xrunver $fdistconf
+    ;;
+
+  diffconfig|dc)
+    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
+    diff -U 20 "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab.rb" | colordiff | less -R
+    ;;
+
+  patchconfig|pc)
+    xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
+    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
+    [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
+    [ -e "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xcfgver.rb"
+    [ -e "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xrunver.rb"
+    diff -u "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" > "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb" || :
+    out "Applying patch to current configuration file..."
+    cmd patch -p0 "/srv/gitlab/config/gitlab.rb" "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb"
+    ;;
+
+  backupconfig|bkc)
+    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
+    xcfged="1"
+    [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
+    out "[+++] Backing up runtime config v$xcfgver..."
+    cmd cp "/srv/gitlab/config/gitlab.rb" "/srv/gitlab/config/gitlab-config-v$xcfgver-$xcfged.rb"
+    cmd diff -u "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab.rb" > "/srv/gitlab/config/gitlab-config-v$xcfgver-$xcfged.patch"
     ;;
 
   *)
-    echo "Error: Invalid action \"$RUNTIME_MODE\"" >&2
-    exit 1
+    err "Invalid action \"$RUNTIME_MODE\""
 esac
