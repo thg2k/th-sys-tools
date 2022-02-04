@@ -22,6 +22,12 @@ GLMANAGER_SERVER_IP="0.0.0.0"
 GLMANAGER_HOSTNAME="git.abc.xyz"
 
 GLMANAGER_BACKUP_DIR="/mnt/gitlab-backups"
+
+GLMANAGER_BACKUP_GPG_TARGET=""
+
+GLMANAGER_BACKUP_EXTERNAL_TARGET=""
+
+GLMANAGER_BACKUP_EXTERNAL_PATH=""
 _CONF_
 fi
 
@@ -48,10 +54,18 @@ then
   exit 1
 fi
 
-echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')" >&2
+if [ "$#" -ge 1 ]
+then
+  RUNTIME_MODE="$1"
+  shift
+else
+  RUNTIME_MODE=""
+fi
+
+echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')${RUNTIME_MODE:+: $RUNTIME_MODE}" >&2
 echo >&2
 
-if [ -z "${1:-}" -o "${1:-}" = "help" ]
+if [ -z "$RUNTIME_MODE" -o "$RUNTIME_MODE" = "help" ]
 then
   echo -e "Usage: $0 [-rm] <command> [args]" >&2
   echo -e "" >&2
@@ -62,7 +76,7 @@ then
   echo -e "    maintenance(mnt)      Spawns a shell inside the container for maintenance" >&2
   echo -e "    stop(s)               Stops the running container" >&2
   echo -e "    remove(rm)            Removes the container" >&2
-  echo -e ""
+  echo -e "" >&2
   echo -e "Commands related to maintenance:" >&2
   echo -e "    backup(bk)            Creates a backup of the gitlab data" >&2
   echo -e "    copydistconfig(cdc)   Copies the config template from the image" >&2
@@ -70,23 +84,74 @@ then
   echo -e "    patchconfig(pc)       Patches the current local config with the actual version" >&2
   echo -e "    backupconfig(bkc)     Creates a backup of the local config" >&2
   echo -e "" >&2
+  echo -e "Commands related to cron execution:" >&2
+  echo -e "    cronautobackup        Performs a full automated backup cycle" >&2
+  echo -e "" >&2
   exit 1
 fi
 
-RUNTIME_MODE=$1
-shift
+if [ -t 1 ]
+then
+  RUNTIME_COLORS="true"
+else
+  RUNTIME_COLORS=""
+fi
 
 # Support functions
 err() {
-  echo -en "\e[31;1mError: $1\e[m\n\n" >&2
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\e[31;1mError: $1\e[m\n\n" >&2
+  else
+    echo -en "Error: $1\n\n" >&2
+  fi
   exit 1
 }
 out() {
-  echo -en "\e[36;1m[+++] $1\e[m\n\n" >&2
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\e[36;1m[+++] $1\e[m\n\n" >&2
+  else
+    echo -en "[+++] $1\n\n" >&2
+  fi
 }
 cmd() {
-  echo -en "\e[33m+ $@\e[m\n" >&2
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\e[33m+ $@\e[m\n" >&2
+  else
+    echo -en "+ $@\n" >&2
+  fi
   "$@"
+}
+_ts_saved=""
+ts_out() {
+  _ts_now=$(date "+%s")
+  if [ -n "$_ts_saved" ]
+  then
+    echo "(time elapsed: +$((_ts_now - $_ts_saved)) s)"
+  fi
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\n\e[36;1m[+++] $(date '+[%F %T]') $1\e[m\n" >&2
+  else
+    echo -en "\n[+++] $(date '+[%F %T]') $1\n" >&2
+  fi
+  _ts_saved="$_ts_now"
+}
+ts_warn() {
+  _ts_now=$(date "+%s")
+  if [ -n "$_ts_saved" ]
+  then
+    echo "(time elapsed: +$((_ts_now - $_ts_saved)) s)"
+  fi
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\n\e[31;1m[---] $(date '+[%F %T]') $1\e[m\n" >&2
+  else
+    echo -en "\n[---] $(date '+[%F %T]') $1\n" >&2
+  fi
+  _ts_saved="$_ts_now"
 }
 
 # Common docker argument blocks
@@ -169,12 +234,59 @@ case "$RUNTIME_MODE" in
   backup|bk)
     xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
-    fpath="$GLMANAGER_BACKUP_DIR/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz"
+    [ -d "$GLMANAGER_BACKUP_DIR" ] || err "Backup path \"$GLMANAGER_BACKUP_DIR\" is not a directory!"
+    mkdir -p "$GLMANAGER_BACKUP_DIR/manual"
+    fpath="$GLMANAGER_BACKUP_DIR/manual/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz"
     [ -e "$fpath" ] && err "Output file '$fpath' already exists!"
     out "Creating backup in '$fpath'..."
-    cmd pushd /srv >/dev/null
-    cmd tar zcf "$fpath" gitlab
-    cmd popd >/dev/null
+    cmd tar -zc -f "$fpath" gitlab
+    ;;
+
+  cronautobackup)
+    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
+    [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
+    [ -d "$GLMANAGER_BACKUP_DIR" ] || err "Backup path \"$GLMANAGER_BACKUP_DIR\" is not a directory!"
+    mkdir -p "$GLMANAGER_BACKUP_DIR/auto"
+    mkdir .gitlab_docker_manager__backup.lock ||
+      err "Failed to create lock sentinel, already running or previously failed!"
+    fpath="$GLMANAGER_BACKUP_DIR/auto/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz.gpg"
+    if [ -e "$fpath" ]
+    then
+      rmdir .gitlab_docker_manager__backup.lock
+      err "Output file '$fpath' already exists!"
+    fi
+    ts_out "Checking GitLab instance status..."
+    crunning=$(docker inspect --format="{{.State.Running}}" gitlab)
+    if [ "$crunning" != "true" ]
+    then
+      rmdir .gitlab_docker_manager__backup.lock
+      err "The istance is not running, refusing to backup."
+    fi
+    ts_out "Stopping GitLab instance..."
+    cmd docker stop -t 600 gitlab
+    ts_out "Creating backup in '$fpath' (encrypt to '$GLMANAGER_BACKUP_GPG_TARGET')..."
+    if (set -e -o pipefail; cd /srv; tar -zc gitlab | gpg -e -r "$GLMANAGER_BACKUP_GPG_TARGET" > "$fpath")
+    then
+      ts_out "Restarting GitLab instance..."
+      cmd docker start gitlab
+      ts_out "Flushing old backups..."
+      cmd find $GLMANAGER_BACKUP_DIR/auto -type f -mtime +15 -print -delete
+      if [ -n "${GLMANAGER_BACKUP_EXTERNAL_TARGET:-}" -a -n "${GLMANAGER_BACKUP_EXTERNAL_PATH:-}" ]
+      then
+        ts_out "Propagating the backup to external server..."
+        cmd scp -p "$fpath" "$GLMANAGER_BACKUP_EXTERNAL_TARGET:$GLMANAGER_BACKUP_EXTERNAL_PATH/" || :
+        ts_out "Flushing old backups in the external server..."
+        ssh "$GLMANAGER_BACKUP_EXTERNAL_TARGET" "set -ex; cd $GLMANAGER_BACKUP_EXTERNAL_PATH; find . -type f -mtime +15 -print -delete" || :
+      else
+        ts_out "Skipping propagation to external server (not defined)"
+      fi
+    else
+      ts_warn "BACKUP FAILED! Still restarting GitLab instance..."
+      cmd rm -f "$fpath"
+      cmd docker start gitlab
+    fi
+    rmdir .gitlab_docker_manager__backup.lock
+    ts_out "Operation completed."
     ;;
 
   copydistconfig|cdc)
