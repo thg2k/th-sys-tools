@@ -84,11 +84,23 @@ case 'ps':
   /* remove the headers */
   array_shift($xlines);
 
-  /* print the headers */
+  $pad_cid = 13;  // 17ade7745a9c
+  $pad_img = 26;  // phpmyadmin/phpmyadmin:4.9
+  $pad_crt = 18;  // 45 minutes ago
+  $pad_upt = 18;  // Up 13 minutes
+  $pad_pps = 46;  // [94.130.180.73]:tcp{80->80, 443->443, 2022->22}; [10.99.101.1]:tcp{25->25}
+
+  /* print our own headers */
   $_ctrl_s = "\e[m";
   $_ctrl_e = "\e[m";
   $data = array();
-  $data[] = $_ctrl_s . "CONTAINER ID         IMAGE                  CREATED           STATUS                   PORTS                                 NAMES" . $_ctrl_e . "\n";
+  $data[] = $_ctrl_s .
+      str_pad("CONTAINER ID", $pad_cid) . " " .
+      str_pad("IMAGE", $pad_img) . " " .
+      str_pad("CREATED", $pad_crt) . " " .
+      str_pad("STATUS", $pad_upt) . " " .
+      str_pad("PORTS", $pad_pps) . " " .
+      "NAMES" . $_ctrl_e . "\n";
 
   foreach ($xlines as $xline) {
     /* we need to use smart parsing, there are spaces in that stuff */
@@ -117,26 +129,35 @@ case 'ps':
     $_ports = preg_split('/, /', $toks[5]);
     $_ports_by_if = array();
     foreach ($_ports as $port) {
-      if (preg_match('{^([0-9.]+):(\d+)->(\d+)/(tcp|udp)$}', $port, $regp))
-        $_ports_by_if["[" . $regp[1] . "]:" . $regp[4]][] = $regp[2] . "->" . $regp[3];
-      elseif (preg_match('{^(\d+)/(tcp|udp)$}', $port, $regp))
-        $_ports_by_if["[0.0.0.0]:" . $regp[2]][] = $regp[1] . "->" . $regp[1];
-      elseif ($port != "")
+      if (preg_match('{^([0-9.]+):(\d+)->(\d+)/(tcp|udp)$}', $port, $regp)) {
+        $_if_name = "[" .
+            ($regp[1] == "0.0.0.0" ? "*" : $regp[1]) . "]:" . $regp[4];
+        $_if_ports = ($regp[2] == $regp[3] ? $regp[2] :
+            $regp[2] . "->" . $regp[3]);
+        $_ports_by_if[$_if_name][] = $_if_ports;
+      }
+      elseif (preg_match('{^(\d+)/(tcp|udp)$}', $port, $regp)) {
+        // not exposed?
+        $_if_name = "[-]:" . $regp[2];
+        $_if_ports = $regp[1];
+        $_ports_by_if[$_if_name][] = $_if_ports;
+      }
+      elseif ($port != "") {
         exit("Bogus ports: " . $toks[5] . "\n");
+      }
     }
     $_ports = array();
     foreach ($_ports_by_if as $_if => $_if_ports) {
       $_ports[$_if] = $_if . "{";
       foreach ($_if_ports as $idx => $port) {
-        $_ports[$_if] .= ($idx > 0 ? ", " : "") . $port;
+        $_ports[$_if] .= ($idx > 0 ? "," : "") . $port;
       }
       $_ports[$_if] .= "}";
     }
     // print " PORTS: " . $toks[5] . "  ==>  " . implode("; ", $_ports) . "\n"; continue;
     $toks[5] = implode("; ", $_ports);
 
-    //                             ID     IMG   CREAT  STATUS PORTS  NAMES
-    $data[] = sprintf($_ctrl_s . "%-12s  %-25s  %-18s  %-20s %-40s \e[1m%s" . $_ctrl_e . "\n",
+    $data[] = sprintf($_ctrl_s . "%-{$pad_cid}s %-{$pad_img}s %-{$pad_crt}s %-{$pad_upt}s %-{$pad_pps}s \e[1m%s" . $_ctrl_e . "\n",
         $toks[0],  // container id
         $toks[1],  // image name
         $toks[3],  // created
