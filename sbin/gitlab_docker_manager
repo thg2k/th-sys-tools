@@ -1,21 +1,23 @@
 #!/bin/bash
 
+GLMANAGER="/srv"
+
 set -eu
 
-cd /srv
+cd $GLMANAGER
 
 GLMANAGER_VERSION="v1"
 
 # Create "dist" config file for comparison
-if [ ! -e gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION ]
-then
-  rm -f gitlab_docker_manager.conf-dist-*
-  cat <<'_CONF_' >gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+rm -f gitlab_docker_manager.conf-dist-tmp
+cat <<'_CONF_' >gitlab_docker_manager.conf-dist-tmp
 GLMANAGER_CVER="GL1"
+
+GLMANAGER_IMAGE_TYPE="ce"
 
 GLMANAGER_IMAGE_VERSION="x.y.z"
 
-GLMANAGER_IMAGE_NAME="gitlab-ce:$GLMANAGER_IMAGE_VERSION-ce.0"
+GLMANAGER_IMAGE_RELEASE="0"
 
 GLMANAGER_SERVER_IP="0.0.0.0"
 
@@ -29,29 +31,36 @@ GLMANAGER_BACKUP_EXTERNAL_TARGET=""
 
 GLMANAGER_BACKUP_EXTERNAL_PATH=""
 _CONF_
+if ! cmp -s gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+then
+  rm -f gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+  echo "Creating template config file '$GLMANAGER/gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION'" >&2
+  cp gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
 fi
 
 # Check for local configuration file
 if [ ! -e gitlab_docker_manager.conf ]
 then
-  echo "Creating template config file '/srv/gitlab_docker_manager.conf'" >&2
+  echo "Creating config file '/srv/gitlab_docker_manager.conf'" >&2
   cp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION gitlab_docker_manager.conf
-  echo "*** Please edit this file to proceed! ***" >&2
-  exit 1
 fi
 . gitlab_docker_manager.conf
 
-# Check that local configuration file has been edited
+# Check that local configuration file is valid
 if [ "${GLMANAGER_CVER:-}" != "GL1" ]
 then
   echo "Bad configuration file, please move it out to create a new one" >&2
   exit 1
 fi
-
 if [ "$GLMANAGER_IMAGE_VERSION" = "x.y.z" -o "$GLMANAGER_HOSTNAME" = "git.abc.xyz" ]
 then
-  echo "Please edit the config file '/srv/gitlab_docker_manager.conf' to proceed" >&2
+  echo "*** Please edit file '$GLMANAGER/gitlab_docker_manager.conf' ***" >&2
   exit 1
+fi
+
+if [ -z "${GLMANAGER_IMAGE_NAME:-}" ]
+then
+  GLMANAGER_IMAGE_NAME="gitlab-$GLMANAGER_IMAGE_TYPE:$GLMANAGER_IMAGE_VERSION-$GLMANAGER_IMAGE_TYPE.$GLMANAGER_IMAGE_RELEASE"
 fi
 
 if [ "$#" -ge 1 ]
@@ -62,7 +71,7 @@ else
   RUNTIME_MODE=""
 fi
 
-echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (using '$GLMANAGER_IMAGE_NAME')${RUNTIME_MODE:+: $RUNTIME_MODE}" >&2
+echo "GITLAB \"$GLMANAGER_HOSTNAME\" manager (image '$GLMANAGER_IMAGE_NAME')${RUNTIME_MODE:+: $RUNTIME_MODE}" >&2
 echo >&2
 
 if [ -z "$RUNTIME_MODE" -o "$RUNTIME_MODE" = "help" ]
@@ -154,6 +163,20 @@ ts_warn() {
   _ts_saved="$_ts_now"
 }
 
+# Obtain config file version (if available)
+if [ -e gitlab/config/gitlab.rb ]
+then
+  xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' gitlab/config/gitlab.rb)
+  if [ "$xcfgver" = "$GLMANAGER_IMAGE_VERSION" ]
+  then
+    echo "Warning: Config file version $xcfgver differs from image $GLMANAGER_IMAGE_VERSION" >&2
+  else
+    echo "Config file version is $xcfgver" >&2
+  fi
+else
+  xcfgver="Config file not found" >&2
+fi
+
 # Common docker argument blocks
 xargs_info="
       --name gitlab"
@@ -232,7 +255,6 @@ case "$RUNTIME_MODE" in
     ;;
 
   backup|bk)
-    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
     [ -d "$GLMANAGER_BACKUP_DIR" ] || err "Backup path \"$GLMANAGER_BACKUP_DIR\" is not a directory!"
     mkdir -p "$GLMANAGER_BACKUP_DIR/manual"
@@ -243,7 +265,6 @@ case "$RUNTIME_MODE" in
     ;;
 
   cronautobackup)
-    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
     [ -d "$GLMANAGER_BACKUP_DIR" ] || err "Backup path \"$GLMANAGER_BACKUP_DIR\" is not a directory!"
     mkdir -p "$GLMANAGER_BACKUP_DIR/auto"
@@ -298,13 +319,11 @@ case "$RUNTIME_MODE" in
     ;;
 
   diffconfig|dc)
-    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     diff -U 20 "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab.rb" | colordiff | less -R
     ;;
 
   patchconfig|pc)
     xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
-    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
     [ -e "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xcfgver.rb"
     [ -e "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xrunver.rb"
@@ -314,7 +333,6 @@ case "$RUNTIME_MODE" in
     ;;
 
   backupconfig|bkc)
-    xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' /srv/gitlab/config/gitlab.rb)
     xcfged="1"
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
     out "[+++] Backing up runtime config v$xcfgver..."
