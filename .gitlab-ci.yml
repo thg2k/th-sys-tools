@@ -1,0 +1,30 @@
+stages:
+ - test
+
+tests_basic:
+  stage: test
+  image: registry.gitlab.com/thgnet/docker-centos7wre:v2
+  variables:
+    RUNTIME_TYPE: development
+    RUNTIME_VERSION: php72
+    RUNTIME_EXTENSIONS: xdebug
+  script:
+   - ./tests/standalone/test_tail_http_access_log.php
+
+tests_php_versions:
+  stage: test
+  needs: [ "tests_basic" ]
+  image: registry.gitlab.com/thgnet/docker-centos7wre:v2
+  variables:
+    RUNTIME_TYPE: development
+  parallel:
+    matrix:
+      - RUNTIME_VERSION: php53
+      - RUNTIME_VERSION: php56
+      - RUNTIME_VERSION: php72
+      - RUNTIME_VERSION: php74
+      - RUNTIME_VERSION: php80
+      - RUNTIME_VERSION: php81
+      - RUNTIME_VERSION: php82
+  script:
+   - ./tests/standalone/test_tail_http_access_log.php
