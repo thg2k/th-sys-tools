@@ -1,5 +1,10 @@
 #!/usr/bin/php
-<?php
+<?php declare(ticks=1);
+/**
+ * tail_http_access_log
+ *
+ * ...
+ */
 
 define("THSYSTOOLS_SHARED_PATH", "@@THSYSTOOLS_SHARED_PATH@@");
 
@@ -9,82 +14,211 @@ else
   require __DIR__ . DIRECTORY_SEPARATOR . "wtools.inc.php";
 
 /**
- * ...
+ * Prints an error message and terminates the execution
+ *
+ * @param string $message Error message
+ * @return never
  */
-class TestTail {
-  public function __construct() {
-    $this->_testcases = array(
-      '127.0.0.1 - - [11/Nov/2017:21:43:43 +0100] "POST /g\\0et\\"cfg.php HTTP/1.1" 200 1 "\\"xx\\"" "AG\\"ENT"',
-      '127.0.0.1 - - [11/Nov/2017:21:43:43 +0100] "POST /normal.php HTTP/1.1" 200 1 "-" "AGENT"'
-    );
-  }
-  public function read() {
-    $retval = array_shift($this->_testcases);
-    if ($retval === null)
-      return false;
-    return $retval;
-  }
+function err($message)
+{
+  fprintf(STDERR, "Error: %s\n", $message);
+  exit(1);
 }
 
 /**
- * ...
+ * Prints a debugging message to the standard error stream
  *
- * @param string $message ...
+ * @param string $message Debug message
+ * @return void
  */
-function dbg($message) {
-  // print "[d] " . $message . "\n";
+function dbg($message)
+{
+  global $opt_debug;
+  if ($opt_debug)
+    fprintf(STDERR, "[d] %s\n", $message);
+}
+
+/**
+ * Prints the command usage information on the given stream
+ *
+ * @param resource $fd Stream for output
+ * @param string $progname Command line name
+ * @return void
+ */
+function print_usage($fd, $progname)
+{
+  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE] [-f] <file> [filters...]\n", $progname);
+}
+
+/**
+ * System function to get the current terminal's columns available
+ *
+ * @return int Number of columns available
+ */
+function sys_get_term_cols()
+{
+  $cols = (int) exec("tput cols 2>/dev/null");
+  if (!$cols)
+    return 80;
+
+  return $cols;
 }
 
 /* ------------------------------------------------------------------------ */
 
-$opt_lines = 5;
-$opt_test = false;
+$opt_help = false;
+$opt_debug = false;
 $opt_cols = null;
-$argidx = 1;
+$opt_rollback_bytes = 32768;
+$opt_rollback_lines = 5;
+$opt_follow = false;
+$opt_filter = array();
+$files = array();
 
-/* read command line switch "-n LINES" */
-if (isset($argv[$argidx]) && ($argv[$argidx] == "-n")) {
-  $opt_lines = (int) (isset($argv[$argidx + 1]) ? $argv[$argidx + 1] : null);
-  $argidx += 2;
+$local_args = $argv;
+$progname = array_shift($local_args);
+
+/* read command line switch "-h" */
+while (($k = array_search("-h", $local_args)) !== false) {
+  $opt_help = true;
+  array_splice($local_args, $k, 1);
+}
+
+/* read command line switch "-d" */
+while (($k = array_search("-d", $local_args)) !== false) {
+  $opt_debug = true;
+  array_splice($local_args, $k, 1);
 }
 
 /* read command line switch "-c COLS" */
-if (isset($argv[$argidx]) && ($argv[$argidx] == "-c")) {
-  $opt_cols = (int) (isset($argv[$argidx + 1]) ? $argv[$argidx + 1] : null);
-  $argidx += 2;
+while (($k = array_search("-c", $local_args)) !== false) {
+  $opt_cols = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  array_splice($local_args, $k, 2);
 }
 
-/* read command line switch "-test" */
-if (isset($argv[$argidx]) && ($argv[$argidx] == "-test")) {
-  $opt_test = true;
-  $argidx++;
+/* read command line switch "-S" */
+while (($k = array_search("-S", $local_args)) !== false) {
+  $opt_rollback_bytes = true;
+  array_splice($local_args, $k, 1);
 }
+
+/* read command line switch "-B SIZE" */
+while (($k = array_search("-B", $local_args)) !== false) {
+  $_arg = (string) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  if (!preg_match('/^(\d+)(M|k)?$/', $_arg, $regp))
+    err("Invalid syntax \"$_arg\" for filter, must be a bytes unit");
+  $opt_rollback_bytes = (int) $regp[1];
+  if (!empty($regp[2])) {
+    $opt_rollback_bytes *= ($regp[2] == "M" ? 1024 * 1024 :
+        ($regp[2] == "k" ? 1024 : 1));
+  }
+  array_splice($local_args, $k, 2);
+}
+
+/* read command line switch "-n LINES" */
+while (($k = array_search("-n", $local_args)) !== false) {
+  $opt_rollback_lines = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  array_splice($local_args, $k, 2);
+}
+
+/* read command line switch "-f" */
+while (($k = array_search("-f", $local_args)) !== false) {
+  $opt_follow = true;
+  array_splice($local_args, $k, 1);
+}
+
+if ($opt_help) {
+  print_usage(STDOUT, $progname);
+  exit(0);
+}
+
+/* process remaining argument, depending on the type, bucket-sort them */
+$_use_only_files = false;
+foreach ($local_args as $_arg) {
+  /* after '--', only files are encountered */
+  if ($_use_only_files) {
+    $files[] = $_arg;
+  }
+  elseif ($_arg == "--") {
+    $_use_only_files = true;
+  }
+  elseif ($_arg == "-") {
+    $files[] = "php://stdin";
+  }
+  elseif (substr($_arg, 0, 1) == "-") {
+    err("Unknown option '$_arg'");
+  }
+  elseif (strpos($_arg, "=") !== false) {
+    if (!preg_match('/^([a-z]+)=(.+)$/', $_arg, $regp))
+      err("Invalid syntax \"$_arg\" for filter, must be key=value");
+    $opt_filter[] = array($regp[1],
+        preg_split('/,/', $regp[2], PREG_SPLIT_NO_EMPTY));
+  }
+  else {
+    $files[] = $_arg;
+  }
+}
+
+dbg("Runtime options:");
+dbg("..  opt_cols = " . ($opt_cols !== null ? $opt_cols : "(auto)"));
+dbg("..  opt_rollback_lines = " . $opt_rollback_lines);
+dbg("..  opt_rollback_bytes = " . $opt_rollback_bytes);
+dbg("..  opt_follow = " . ($opt_follow ? "true" : "false"));
+dbg("..  opt_filter = " . json_encode($opt_filter));
 
 /* ------------------------------------------------------------------------ */
 
 /* auto-determine the number of usable columns */
 if ($opt_cols === null) {
-  dbg("trying to auto-determine total number of columns");
-  $opt_cols = (int) exec("tput cols");
-  dbg("detected screen columns: " . $opt_cols);
+  dbg("Trying to auto-determine total number of columns");
+  $opt_cols = sys_get_term_cols();
+  dbg(".. detected screen columns: " . $opt_cols);
+
+  if (function_exists('pcntl_signal')) {
+    dbg("Setting up terminal resize signal handler (SIGWINCH)");
+    pcntl_signal(SIGWINCH, function($signo, $siginfo) {
+      global $opt_cols;
+      dbg("Terminal resized, attempting to detect new number of columns");
+      $opt_cols = sys_get_term_cols();
+      dbg(".. detected screen columns: " . $opt_cols);
+    });
+  }
 }
 
-/* execute tests now if requested */
-if ($opt_test) {
-  $tail = new TestTail($file);
+/* read first command argument (file name) */
+$file = null;
+if (count($files) > 0)
+  $file = array_shift($files);
+if ($file == "-") {
+  $file = "php://stdin";
+}
+elseif ($file == "") {
+  if ($file === null) {
+    /* attempt to find the most obvious file */
+    $CandidateFiles = array(
+      "%HOME/logs/access_log",
+      "./access_log");
+
+    $repls = array(array("%HOME"), array(getenv("HOME")));
+    foreach ($CandidateFiles as $candidate_file) {
+      $candidate_file = str_replace($repls[0], $repls[1], $candidate_file);
+      if (file_exists($candidate_file))
+        $file = $candidate_file;
+    }
+  }
+
+  if ($file == "") {
+    print_usage(STDERR, $progname);
+    exit(1);
+  }
+}
+
+$tail = new Tail($file, $opt_follow);
+if ($opt_rollback_bytes === true) {
+  $tail->rollback();
 }
 else {
-  /* read first command argument (file name) */
-  $file = (isset($argv[$argidx]) ? $argv[$argidx] : "");
-  if ($file == "")
-    $file = getenv("HOME") . "/logs/access_log";
-  // if ($file == "")
-    // fputs(STDERR, "Usage: " . $argv[0] . " [-n <lines>] <file>\n");
-    // exit(1);
-  // }
-
-  $tail = new Tail($file);
-  $tail->rollbackBytes(32768);
+  $tail->rollbackBytes($opt_rollback_bytes);
 }
 
 /* support function to format colored HTTP status (width: 3 chars) */
@@ -105,6 +239,7 @@ $fmt_http_status = function($status) {
 
 /*
  *   "  - "
+ *   "  < "   < 0.5
  *   " <1k"   < 1.0
  *   "  5k"
  *   " 10k"
@@ -121,6 +256,10 @@ $fmt_sent_size = function($size) {
   /* convert to kibibytes */
   $size /= 1024.0;
 
+  /* less than half kiB we show it as "less than" */
+  if ($size < 0.5)
+    return "  < ";
+
   /* less than one kiB we show it as "less than" */
   // if ($size < 1)
     // return " <1k";
@@ -129,50 +268,58 @@ $fmt_sent_size = function($size) {
    * comparison of the sizes, as visually "1.5k" is larger than "15k", it is
    * harder to spot more relevant transfers */
   if ($size < 999.5)
-    return sprintf("%3.0fk", $size);
+    // return sprintf("%3.0fk", $size);  // FIXME: see https://3v4l.org/8QtBc
+    return sprintf("%3.0fk", round($size));
 
   /* time to convert to mebibytes */
   $size /= 1024.0;
 
   /* this time we also show decimals up to 10M */
   if ($size < 9.95)
-    return sprintf("\e[1m%3.1fM\e[m", $size);
+    return sprintf("\x1b[1m%3.1fM\x1b[m", round($size, 1));
 
-  return sprintf("\e[1m%3.0fM\e[m", $size);
+  return sprintf("\x1b[1m%3.0fM\x1b[m", round($size, 0));
 };
 
+/**
+ * ...
+ *
+ * fmts:
+ *   "   -  "
+ *   "9999ms"
+ *   "99.9s "
+ *   "9999s "
+ */
 $fmt_duration = function($duration) {
-  // fmts:
-  //   "999ms"
-  //   "99.9s"
-  //   "9999s"
-  //   "   - "
   if (!$duration)
-    return "   - ";
+    return "  -   ";
 
   /* formatting space-fixed */
-  if ($duration <= 999) {
-    /* format: 999ms */
-    $fmt = sprintf("%3dms", $duration);
+  if ($duration < 10000) {
+    /* format: 9999ms */
+    $fmt = sprintf("%4dms", $duration);
   }
-  elseif ($duration <= 99999) {
-    /* format: 99.9s */
-    $fmt = sprintf("%4.1fs", $duration / 1000);
+  elseif ($duration < 99950) {
+    /* format: 999.9s_ */
+    $fmt = sprintf("%4.1fs ", $duration / 1000);
   }
   else {
-    /* format: 999s */
-    $fmt = sprintf("%3ds", (int) round($duration / 1000));
+    /* format: 9999s_ */
+    $fmt = sprintf("%4ds ", (int) round($duration / 1000));
   }
 
   /* apply coloring */
-  if ($duration > 1000) {
-    $fmt = "\e[31m" . $fmt . "\e[m";
+  if ($duration >= 10000) {
+    $fmt = "\x1b[31;1m" . $fmt . "\x1b[m";
   }
-  elseif ($duration > 300) {
-    $fmt = "\e[33m" . $fmt . "\e[m";
+  elseif ($duration > 1499) {
+    $fmt = "\x1b[31m" . $fmt . "\x1b[m";
+  }
+  elseif ($duration > 299) {
+    $fmt = "\x1b[33m" . $fmt . "\x1b[m";
   }
   // elseif ($duration > 100) {
-    // $fmt = "\e[1m" . $fmt . "\e[m";
+    // $fmt = "\x1b[1m" . $fmt . "\x1b[m";
   // }
 
   return $fmt;
@@ -182,8 +329,13 @@ $fmt_http_request = function($req) {
   // if (preg_match('/^"
   // return "{{ " . $req . " }}";
   // GET, POST, PUT, DELETE, OPTIONS
-  if (preg_match('~^"([A-Z]{1,7}) (.+) HTTP/(1\.[01])"$~', $req, $regp))
-    return "{" . $regp[3] . "} " . "\x1b[1m" . $regp[1] . " " . $regp[2] . "\x1b[m";
+  if (preg_match('~^"([A-Z]{1,7}) (.+) HTTP/(1\.[01])"$~', $req, $regp)) {
+    if (preg_match('/^([^?]+)(\?.*)$/', $regp[2], $regxp)) {
+      return "{" . $regp[3] . "} " . "\x1b[1m" . $regp[1] . " " . $regxp[1] . "\x1b[m" . $regxp[2];
+    }
+    else
+      return "{" . $regp[3] . "} " . "\x1b[1m" . $regp[1] . " " . $regp[2] . "\x1b[m";
+  }
   else
     return "\x1b[31m" . $req . "\x1b[m";
 };
@@ -203,7 +355,7 @@ $trunc_console_line = function($line, $max_chars) {
       continue;
     }
 
-    if ($chr == "\e") {
+    if ($chr == "\x1b") {
       $in_escape_sequence = true;
       continue;
     }
@@ -212,7 +364,7 @@ $trunc_console_line = function($line, $max_chars) {
   }
 
   if ($visible_chars == $max_chars)
-    return substr($line, 0, $i) . "\e[m";
+    return substr($line, 0, $i) . "\x1b[m";
 
   return $line;
 };
@@ -220,7 +372,18 @@ $trunc_console_line = function($line, $max_chars) {
 $current_date = null;
 while (($str = $tail->read()) !== false) {
 
-  if (!($regp = WTools::parseAccessLog_th_lf_2($str)))
+  // FIXME: only for testing!
+  if ((substr($str, 0, 1) == "#") || ($str == "")) {
+    print $str . "\n";
+    continue;
+  }
+  if (substr($str, 0, 1) == "=") {
+    continue;
+  }
+  // print $str . "\n";
+
+
+  if (!($regp = WTools::parseAccessLog_th_lf($str)))
     goto err;
   // var_dump($regp); exit();
 
@@ -230,8 +393,56 @@ while (($str = $tail->read()) !== false) {
 
 // var_dump($regp);
 
+  if (count($opt_filter) > 0) {
+    /* if filters are provided, each filter must match */
+    $filter_match = true;
+    foreach ($opt_filter as $xfilter) {
+      /* each filter can have alternative match values, either one is fine */
+      $_match = false;
+      foreach ($xfilter[1] as $xfiltervalue) {
+        switch ($xfilter[0]) {
+        case 'url':
+        case 'req':
+          $_match = $_match || (strpos($regp['req'], $xfiltervalue) !== false);
+          break;
+
+        case 'status':
+          $_match = $_match || ($regp['status'] == (int) $xfiltervalue);
+          break;
+
+        case 'ip':
+          $_match = $_match || (strpos($regp['ip'], $xfiltervalue) !== false);
+          break;
+
+        case 'time':
+          $_match = $_match ||
+              !strncmp($regp['time'], $xfiltervalue, strlen($xfiltervalue));
+          break;
+
+        case 'minsize':
+          $_match = $_match ||
+              ($regp['size'] >= (int) $xfiltervalue);
+          break;
+
+        case 'maxsize':
+          $_match = $_match ||
+              ($regp['size'] <= (int) $xfiltervalue);
+          break;
+
+        case 'peer':
+          $_match = $_match || (strpos($regp['peer'], $xfiltervalue) !== false);
+          break;
+        }
+      }
+      if (!$_match)
+        $filter_match = false;
+    }
+    if (!$filter_match)
+      continue;
+  }
+
   if ($regp['date'] !== $current_date) {
-    print "\n\e[1m=== " . $regp['date'] . " ===\e[m\n";
+    print "\n\x1b[1m=== " . $regp['date'] . " ===\x1b[m\n";
     $current_date = $regp['date'];
   }
 
@@ -247,20 +458,24 @@ while (($str = $tail->read()) !== false) {
 
   // format ipv6+nick on the same slot
   // 255.255.255.255 MyNickNameIsVeryLong
-  $slot_1 = sprintf("%-15s %s", $regp['ip'], $regp['user']);
+  // 1111:2222:3333:4444:5555:6666:7777:8888
+  // $slot_1 = sprintf("%-15s %s",
+      // ;
 
   // print formatted line
-  //                1   2     3    4  5  6  7    8 9
-  $line = sprintf("%8s %-42s %-7s %s %s %s %-40s%s%s",
-      /* 1 */ $regp['time'],
-      /* 2 */ $slot_1,
-      /* 3 */ ($regp['proto'] != "" ? $regp['proto'] : "PLAIN"),
-      /* 4 */ $fmt_http_status($regp['status']),
-      /* 5 */ $fmt_sent_size($regp['size']),
-      /* 6 */ $fmt_duration($regp['duration']),
-      /* 7 */ $fmt_http_request($regp['req']),
-      /* 8 */ ($regp['referer'] != "" ? "  \e[36m" . $regp['referer'] . "\e[m" : " (no referer)"),
-      /* 9 */ ($regp['agent'] != "" ? "  \e[35m" . $regp['agent'] . "\e[m" : "  (no agent)"));
+  //                ts  p   ip   pt st sz tm    rq u r a
+  $line = sprintf("%8s %s%-40s %-7s %s %s %s %-40s%s%s%s",
+      /* ts */ $regp['time'],
+      /* pp */ ($regp['peer'] != "" ? "\x1b[33m>\x1b[m" : " "),
+      /* ip */ $regp['ip'],
+      /* pt */ ($regp['proto'] != "" ? $regp['proto'] : "PLAIN"),
+      /* st */ $fmt_http_status($regp['status']),
+      /* sz */ $fmt_sent_size($regp['size']),
+      /* tm */ $fmt_duration($regp['duration']),
+      /* rq */ $fmt_http_request($regp['req']),
+      /* uu */ ($regp['user'] != "" ? "  \x1b[31m" . $regp['user'] . "\x1b[m" : ""),
+      /* rr */ ($regp['referer'] != "" ? "  \x1b[36m" . $regp['referer'] . "\x1b[m" : "  (no referer)"),
+      /* aa */ ($regp['agent'] != "" ? "  \x1b[35m" . $regp['agent'] . "\x1b[m" : "  (no agent)"));
 
   print WTools::truncConsoleLine($line, $opt_cols) . "\n";
   continue;

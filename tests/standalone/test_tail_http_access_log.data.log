@@ -1,0 +1,58 @@
+# format: th_lf_3
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:45:44 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421
+
+# with or without proxy
+1.1.1.1>1.1.1.1 - TLSv1.3 [04/Oct/2022:12:02:01 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421
+1.1.1.1>1.1.1.2 - TLSv1.3 [04/Oct/2022:12:02:02 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421
+
+# check various size printing
+# expect: "  < "
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:01 +0000] "GET / HTTP/1.1" 200 0 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:02 +0000] "GET / HTTP/1.1" 200 1 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:03 +0000] "GET / HTTP/1.1" 200 499 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:04 +0000] "GET / HTTP/1.1" 200 500 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:05 +0000] "GET / HTTP/1.1" 200 501 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:06 +0000] "GET / HTTP/1.1" 200 511 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+# expect: "nnnk"
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:07 +0000] "GET / HTTP/1.1" 200 512 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:08 +0000] "GET / HTTP/1.1" 200 513 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:09 +0000] "GET / HTTP/1.1" 200 999 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:10 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:11 +0000] "GET / HTTP/1.1" 200 2048 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:12 +0000] "GET / HTTP/1.1" 200 1023487 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+# expect: "n.nM" (bold)
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:13 +0000] "GET / HTTP/1.1" 200 1023488 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:14 +0000] "GET / HTTP/1.1" 200 10433331 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+# expect: "nnnM" (bold)
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:15 +0000] "GET / HTTP/1.1" 200 10433332 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:16 +0000] "GET / HTTP/1.1" 200 1048051711 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+# expect: "...M" (bold), last line skew
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:17 +0000] "GET / HTTP/1.1" 200 1048051712 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:01:18 +0000] "GET / HTTP/1.1" 200 12944670720 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 148810
+
+# check various duration formatting
+# expect: "   -  "
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:01 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 0
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:02 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:03 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 499
+# expect: "nnnnms"
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:04 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 500
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:05 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 299499
+# expect: "nnnnms" (yellow)
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:06 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 299500
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:07 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1499499
+# expect: "nnnnms" (red)
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:08 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1499500
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:09 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 9999499
+# expect: "nn.ns " (red, bold)
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:10 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 9999500
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:11 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 99949499
+# expect: "nnnns " (red, bold), last line skew
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:12 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 99949500
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:13 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 999999999
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:14 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 9999499499
+1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:15 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 9999499500
+
+# Final tests for rollbacks (these must be the last ones)
+10.0.1.1 - - [04/Oct/2022:23:59:01 +0000] "GET / HTTP/1.1" 200 1024 "" "Mozilla/5.0 (rbxxxx)" 10991
+10.0.1.1 - - [04/Oct/2022:23:59:02 +0000] "GET / HTTP/1.1" 200 1024 "" "Mozilla/5.0 (rbxxxx)" 10991

@@ -1,0 +1,60 @@
+# format: th_lf_3
+
+[1m=== 04/Oct/2022 ===[m
+12:45:44 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# with or without proxy
+12:02:01  1.1.1.1                                  TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:02 [33m>[m1.1.1.2                                  TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# check various size printing
+# expect: "  < "
+12:01:01 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   -   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:02 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   <   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:03 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   <   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:04 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   <   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:05 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   <   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:06 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   <   149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnk"
+12:01:07 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:08 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:09 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:10 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:11 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   2k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:12 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m 999k  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "n.nM" (bold)
+12:01:13 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m1.0M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:14 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m9.9M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnM" (bold)
+12:01:15 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m 10M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:16 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m999M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "...M" (bold), last line skew
+12:01:17 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m1000M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:01:18 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m [1m12345M[m  149ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# check various duration formatting
+# expect: "   -  "
+12:02:01 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k   -    {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:02 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k   -    {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:03 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k   -    {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnnms"
+12:02:04 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:05 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k  299ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnnms" (yellow)
+12:02:06 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [33m 300ms[m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:07 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [33m1499ms[m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnnms" (red)
+12:02:08 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31m1500ms[m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:09 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31m9999ms[m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nn.ns " (red, bold)
+12:02:10 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m10.0s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:11 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m99.9s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+# expect: "nnnns " (red, bold), last line skew
+12:02:12 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m 100s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:13 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m1000s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:14 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m9999s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+12:02:15 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m10000s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# Final tests for rollbacks (these must be the last ones)
+23:59:01  10.0.1.1                                 PLAIN   [32m200[m   1k   11ms {1.1} [1mGET /[m                        (no referer)  [35mMozilla/5.0 (rbxxxx)[m
+23:59:02  10.0.1.1                                 PLAIN   [32m200[m   1k   11ms {1.1} [1mGET /[m                        (no referer)  [35mMozilla/5.0 (rbxxxx)[m

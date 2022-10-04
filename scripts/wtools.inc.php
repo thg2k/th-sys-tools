@@ -84,8 +84,9 @@ class Tail {
    * ...
    *
    * @param string $pathname ...
+   * @param bool $follow ...
    */
-  public function __construct($pathname) {
+  public function __construct($pathname, $follow = true) {
     $this->_fd = @fopen($pathname, "r");
     if ($this->_fd === false)
       throw new TailException("Cannot open file \"$pathname\" for reading");
@@ -98,11 +99,17 @@ class Tail {
     // fgets($this->_fd);
 
     /* create a new Inotify instance */
-    $this->_inotify = new Inotify();
+    if ($follow) {
+      $this->_inotify = new Inotify();
 
-    /* set up the watch on this same file */
-    $this->_inotify->addWatch($pathname,
-        IN_MODIFY | IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
+      /* set up the watch on this same file */
+      $this->_inotify->addWatch($pathname,
+          IN_MODIFY | IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF);
+    }
+  }
+
+  public function rollback() {
+    fseek($this->_fd, 0, SEEK_SET);
   }
 
   /**
@@ -111,10 +118,18 @@ class Tail {
    * @param int $amount ...
    */
   public function rollbackBytes($amount) {
-    fseek($this->_fd, -$amount, SEEK_END);
+    /* attempt to rollback that amount plus one, this way we can chop off one
+     * line in case it's partial and position to the first beginning on line
+     * since the amount requested */
+    $ret = fseek($this->_fd, -($amount + 1), SEEK_END);
 
-    /* discard a possibly partial line */
-    fgets($this->_fd);
+    if ($ret < 0) {
+      fseek($this->_fd, 0, SEEK_SET);
+    }
+    else {
+      /* discard a possibly partial line */
+      fgets($this->_fd);
+    }
   }
 
   /**
@@ -134,6 +149,10 @@ class Tail {
       if ($buffer !== false) {
         $buffer = rtrim($buffer, "\r\n");
         return $buffer;
+      }
+
+      if (!$this->_inotify) {
+        return false;
       }
 
       /* no data to read at the moment, set up the inotify */
@@ -175,7 +194,7 @@ class WTools {
         continue;
       }
 
-      if ($chr == "\e") {
+      if ($chr == "\x1b") {
         $in_escape_sequence = true;
         continue;
       }
@@ -184,42 +203,68 @@ class WTools {
     }
 
     if ($visible_chars == $chars)
-      return substr($line, 0, $i) . "\e[m";
+      return substr($line, 0, $i) . "\x1b[m";
 
     return $line;
   }
 
-  public static function parseAccessLog_th_lf_2($str)
+  /**
+   * ...
+   *
+   * @param string $str ...
+   * @return array{
+   *    peer: string,
+   *    ip: string,
+   *    proto: string,
+   *    date: string,
+   *    time: string,
+   *    req: string,
+   *    status: int,
+   *    size: int,
+   *    referer: ?string,
+   *    agent: ?string,
+   *    duration: int} ...
+   */
+  public static function parseAccessLog_th_lf($str)
   {
-    // $str = '10.101.1.4 - - [13/Nov/2020:14:59:21 +0000] "GET /codice-civile/libro-quinto/titolo-ii/capo-i/sezione-i/art2087.html HTTP/1.1" 200 55203 "https://www.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.193 Safari/537.36" 14122';
-    // $str = '10.101.1.4 - - [13/Nov/2020:14:59:21 +0000] "GET /codice-civile/libro-quinto/titolo-ii/capo-i/sezione-i/art2087.html HTTP/1.1" 200 55203 "https://www.google.com/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.193 Safari/537.36"';
-    // 81.202.254.26 WonderSeller TLSv1.2 [17/May/2018:00:58:13 +0200]
-    //     "GET /sell/articles/cards HTTP/1.1"
-    //     200 98356 "-"
-    //     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"
-    // 10.101.1.4    -            -       [13/Nov/2020:14:34:48 +0000]
-    //     "GET /codice-penale/libro-secondo/titolo-ii/capo-i/art323bis.html HTTP/1.1"
-    //     200 26452 "-"
-    //     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
-    //     360527
+    // th_lf_1 format:
+    //     IP USER PROTO [REQ_TIME] "REQ" STATUS SIZE "REFERER" "AGENT"
+    //
+    // th_lf_2 format:
+    //     IP USER PROTO [REQ_TIME] ...
+    //     "REQ" STATUS SIZE "REFERER" "AGENT" DURATION
+    //
+    // th_lf_3 format:
+    //     PEER>IP USER PROTO [REQ_TIME] ...
+    //     "REQ" STATUS SIZE "REFERER" "AGENT" DURATION
+    //
     if (!preg_match('{^' .
-        '(?P<ip>[^ ]+) ' .                    // ip:      81.202.254.26
-        '(?P<user>[^ ]+) ' .                  // user:    WonderSeller
-        '(?P<proto>[^ ]+) ' .                 // proto:   TLSv1.2
-        '\[(?P<date>\d+/\w+/\d{4}):' .        // date:    17/May/2018
-          '(?P<time>[0-9:]+) \+\d+\] ' .      // time:    00:58:13 +0200
-        '(?P<req>"(?:\\\\.|[^"])*") ' .       // req:     GET /blabla HTTP/1.1
-        '(?P<status>\d+) ' .                  // status:  200
-        '(?<size>\d+|-) ' .                   // size:    168682
-        '(?P<referer>"(?:\\\\.|[^"])*")? ' .  // referer: -
-        '(?P<agent>"(?:\\\\.|[^"])*")' .      // agent:   Mozilla/5.0 (...)
-        '(?: (?P<duration>\d+))?$}',
+        // peer available only in: th_lf_3
+        '(?:(?P<peer>[0-9.a-f:]+)>)?' .       // peer:     172.71.26.115
+        '(?P<ip>[0-9.a-f:]+) ' .              // ip:       81.202.254.26
+        '(?P<user>[^ ]+) ' .                  // user:     WonderSeller
+        '(?P<proto>[^ ]+) ' .                 // proto:    TLSv1.2
+        '\[(?P<date>\d+/\w+/\d{4}):' .        // date:     17/May/2018
+          '(?P<time>[0-9:]+) ' .              // time:     00:58:13
+          '(?P<zone>\+\d+)\] ' .              // zone:     +0200
+        '(?P<req>"(?:\\\\.|[^"])*") ' .       // req:      GET /blabla HTTP/1.1
+        '(?P<status>\d+) ' .                  // status:   200
+        '(?<size>\d+|-) ' .                   // size:     168682
+        '(?P<referer>"(?:\\\\.|[^"])*")? ' .  // referer:  -
+        '(?P<agent>"(?:\\\\.|[^"])*")' .      // agent:    Mozilla/5.0 (...)
+        // duration available only in: th_lf_2, th_lf_3
+        '(?: (?P<duration>\d+))?$}',          // duration: 242232 (usec)
         $str, $regp))
       return false;
 
+    $stamp = \DateTime::createFromFormat("d/M/Y G:i:s P",
+        $regp['date'] . " " . $regp['time'] . " " . $regp['zone']);
+
     $rec = array();
+    $rec['stamp'] = $stamp->getTimestamp();
+    $rec['peer'] = ($regp['peer'] != $regp['ip'] ? $regp['peer'] : "");
     $rec['ip'] = $regp['ip'];
-    $rec['user'] = $regp['user'];
+    $rec['user'] = ($regp['user'] != "-" ? $regp['user'] : "");
     $rec['proto'] = ($regp['proto'] != "-" ? $regp['proto'] : "");
     $rec['date'] = $regp['date'];
     $rec['time'] = $regp['time'];
