@@ -149,6 +149,7 @@ mysql_choose() {
 # mc
 #
 # Alias of 'mysql_choose'
+#
 alias mc='mysql_choose'
 
 

@@ -1,9 +1,10 @@
+_th_sys_tools_version="0.3.0"
 _th_sys_tools_root=$(readlink -f ${BASH_SOURCE[0]})
 _th_sys_tools_root=${_th_sys_tools_root%/bash/init.sh}
 
 if [ -n "$PS1" ]
 then
-  echo "Loading th-sys-tools v0.3.0-dev in $_th_sys_tools_root"
+  echo "Loading th-sys-tools v$_th_sys_tools_version in $_th_sys_tools_root"
 fi
 
 export HISTSIZE=100000
