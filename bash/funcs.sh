@@ -199,3 +199,52 @@ git-manage() {
       ;;
   esac
 }
+
+
+##############################################################################
+# xcomposer
+#
+# Fully version-locked PHP composer wrapper command
+#
+# Environment:
+#  - XCOMPOSER_PATH
+#
+xcomposer() {
+  local xcomposer_default_version="1.10.26"
+
+  if [ "${1:-}" = "ver-init" ]
+  then
+    echo "$xcomposer_default_version" > composer.ver-lock
+    echo "Created file 'composer.ver-lock' with $xcomposer_default_version" >&2
+    return 0
+  fi
+
+  if [ ! -e "composer.ver-lock" ]
+  then
+    echo "Error: Cannot find file 'composer.ver-lock'!" >&2
+    echo "You should run: xcomposer ver-init" >&2
+    return 1
+  fi
+
+  local xcomposer_version=`cat composer.ver-lock`
+  local xcomposer_path="$HOME/.cache/xcomposer/$xcomposer_version"
+
+  if [ -n "${XCOMPOSER_PATH:-}" ]
+  then
+    xcomposer_path="$XCOMPOSER_PATH/$xcomposer_version"
+  fi
+
+  if [ ! -e "$xcomposer_path" ]
+  then
+    echo "(xcomposer: installing composer version $xcomposer_version)" >&2
+    mkdir -p "$xcomposer_path"/bin
+    wget -nv -O "$xcomposer_path"/bin/composer \
+      https://github.com/composer/composer/releases/download/$xcomposer_version/composer.phar
+    chmod 755 "$xcomposer_path"/bin/composer
+    echo
+  fi
+
+  echo "(xcomposer: using composer version $xcomposer_version)" >&2
+  COMPOSER_CACHE_DIR="$xcomposer_path"/cache \
+    "$xcomposer_path"/bin/composer $@
+}
