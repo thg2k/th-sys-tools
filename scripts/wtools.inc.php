@@ -227,6 +227,9 @@ class WTools {
    */
   public static function parseAccessLog_th_lf($str)
   {
+    // basic?
+    //     IP USER IDENT [REQ_TIME] "REQ" STATUS SIZE
+    //
     // th_lf_1 format:
     //     IP USER PROTO [REQ_TIME] "REQ" STATUS SIZE "REFERER" "AGENT"
     //
@@ -249,11 +252,14 @@ class WTools {
           '(?P<zone>\+\d+)\] ' .              // zone:     +0200
         '(?P<req>"(?:\\\\.|[^"])*") ' .       // req:      GET /blabla HTTP/1.1
         '(?P<status>\d+) ' .                  // status:   200
-        '(?<size>\d+|-) ' .                   // size:     168682
+        '(?<size>\d+|-)' .                    // size:     168682
+        // the following are only available in combined
+        '(?: ' .
         '(?P<referer>"(?:\\\\.|[^"])*")? ' .  // referer:  -
         '(?P<agent>"(?:\\\\.|[^"])*")' .      // agent:    Mozilla/5.0 (...)
         // duration available only in: th_lf_2, th_lf_3
-        '(?: (?P<duration>\d+))?$}',          // duration: 242232 (usec)
+        '(?: (?P<duration>\d+))?' .           // duration: 242232 (usec)
+        ')?$}',
         $str, $regp))
       return false;
 

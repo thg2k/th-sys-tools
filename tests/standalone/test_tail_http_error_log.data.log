@@ -1,0 +1,4 @@
+# generic stuff
+[Sat Aug 26 17:09:03.013740 2023] [mpm_prefork:notice] [pid 65] AH00169: caught SIGTERM, shutting down
+[Sat Aug 26 16:15:59.962743 2023] [lbmethod_heartbeat:notice] [pid 70] AH02282: No slotmem from mod_heartmonitor
+[Sat Aug 26 16:55:43.732569 2023] [:error] [pid 84] [client 85.25.218.153:54500] PHP Notice:  Undefined index: db_password in /srv/app/htdocs/config-local-2.inc.php on line 38

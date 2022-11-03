@@ -1,9 +1,33 @@
-# format: th_lf_3
 
-[1m=== 04/Oct/2022 ===[m
-12:45:44 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+[1m=== 01/Oct/2022 ===[m                                 SSL   STAT SIZE  TIME  PROTOCOL / REQUEST / REFERER / USER AGENT
+00:00:00  10.0.0.0                                 PLAIN   [32m200[m   -    -    {1.0} [1mGET /[m                        (no referer)  (no agent)
+
+# format: common "%h %l %u %t \"%r\" %>s %b"
+# HOST LOGIN IDENT TIME "REQ" STATUS SIZE
+06:07:01  10.0.1.1                                 PLAIN   [32m200[m   1k   -    {1.1} [1mGET /[m                        (no referer)  (no agent)
+
+# format: combined "%h %l %u %t \"%r\" %>s %b"
+# HOST LOGIN IDENT TIME "REQ" STATUS SIZE REFERER AGENT
+06:07:02  10.0.1.2                                 PLAIN   [32m200[m   1k   -    {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# format: th_lf_1
+# "%h %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+# HOST USER PROTO TIME "REQ" STATUS SIZE REFERER AGENT
+06:08:01  10.0.2.1                                 TLSv1.3 [32m200[m   1k   -    {1.1} [1mGET /[m                        [31mjohnny[m  [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
+
+# format: th_lf_1_ws
+# "%h %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{wsdump}n\" \"%{User-Agent}i\""
+# HOST USER PROTO TIME "REQ" STATUS SIZE WSDUMP AGENT
+06:08:02  10.0.2.2                                 TLSv1.3 [32m200[m   1k   -    {1.1} [1mGET /[m                        [31mjohnny[m  [36mxyz[m  [35mMozilla/5.0 (test data)[m
+
+# format: th_lf_3
+# "... %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" ..."
+# PROXY>HOST USER PROTO [TIME] "REQ" STATUS SIZE REFERER AGENT DURATION
+06:08:03 [33m>[m10.0.2.3                                 TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
 
 # with or without proxy
+
+[1m=== 04/Oct/2022 ===[m                                 SSL   STAT SIZE  TIME  PROTOCOL / REQUEST / REFERER / USER AGENT
 12:02:01  1.1.1.1                                  TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
 12:02:02 [33m>[m1.1.1.2                                  TLSv1.3 [32m200[m   1k    1ms {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
 

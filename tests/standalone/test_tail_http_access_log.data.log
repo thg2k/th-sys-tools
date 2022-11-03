@@ -1,5 +1,27 @@
+10.0.0.0 - - [01/Oct/2022:00:00:00 +0000] "GET / HTTP/1.0" 200 0
+
+# format: common "%h %l %u %t \"%r\" %>s %b"
+# HOST LOGIN IDENT TIME "REQ" STATUS SIZE
+10.0.1.1 - - [01/Oct/2022:06:07:01 +0000] "GET / HTTP/1.1" 200 1024
+
+# format: combined "%h %l %u %t \"%r\" %>s %b"
+# HOST LOGIN IDENT TIME "REQ" STATUS SIZE REFERER AGENT
+10.0.1.2 - - [01/Oct/2022:06:07:02 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)"
+
+# format: th_lf_1
+# "%h %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\""
+# HOST USER PROTO TIME "REQ" STATUS SIZE REFERER AGENT
+10.0.2.1 johnny TLSv1.3 [01/Oct/2022:06:08:01 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)"
+
+# format: th_lf_1_ws
+# "%h %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{wsdump}n\" \"%{User-Agent}i\""
+# HOST USER PROTO TIME "REQ" STATUS SIZE WSDUMP AGENT
+10.0.2.2 johnny TLSv1.3 [01/Oct/2022:06:08:02 +0000] "GET / HTTP/1.1" 200 1024 "xyz" "Mozilla/5.0 (test data)"
+
 # format: th_lf_3
-1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:45:44 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421
+# "... %{username}n %{SSL_PROTOCOL}x %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" ..."
+# PROXY>HOST USER PROTO [TIME] "REQ" STATUS SIZE REFERER AGENT DURATION
+1.1.1.1>10.0.2.3 - TLSv1.3 [01/Oct/2022:06:08:03 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421
 
 # with or without proxy
 1.1.1.1>1.1.1.1 - TLSv1.3 [04/Oct/2022:12:02:01 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 1421

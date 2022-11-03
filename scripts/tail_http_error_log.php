@@ -47,7 +47,7 @@ function dbg($message)
  */
 function print_usage($fd, $progname)
 {
-  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE] [-f] <file> [filters...]\n", $progname);
+  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE|-n LINES] [-f] <file> [filters...]\n", $progname);
 }
 
 /**
@@ -72,8 +72,8 @@ function sys_get_term_cols()
 $opt_help = false;
 $opt_debug = false;
 $opt_cols = null;
-$opt_rollback_bytes = 32768;
-$opt_rollback_lines = 5;
+$opt_rollback_type = null;
+$opt_rollback_amount = 5;
 $opt_follow = false;
 $opt_filter = array();
 $files = array();
@@ -101,7 +101,9 @@ while (($k = array_search("-c", $local_args)) !== false) {
 
 /* read command line switch "-S" */
 while (($k = array_search("-S", $local_args)) !== false) {
-  $opt_rollback_bytes = true;
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-S"))
+    err("Command line options '-S' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-S";
   array_splice($local_args, $k, 1);
 }
 
@@ -110,9 +112,12 @@ while (($k = array_search("-B", $local_args)) !== false) {
   $_arg = (string) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
   if (!preg_match('/^(\d+)(M|k)?$/', $_arg, $regp))
     err("Invalid syntax \"$_arg\" for filter, must be a bytes unit");
-  $opt_rollback_bytes = (int) $regp[1];
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-B"))
+    err("Command line options '-B' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-B";
+  $opt_rollback_amount = (int) $regp[1];
   if (!empty($regp[2])) {
-    $opt_rollback_bytes *= ($regp[2] == "M" ? 1024 * 1024 :
+    $opt_rollback_amount *= ($regp[2] == "M" ? 1024 * 1024 :
         ($regp[2] == "k" ? 1024 : 1));
   }
   array_splice($local_args, $k, 2);
@@ -120,7 +125,10 @@ while (($k = array_search("-B", $local_args)) !== false) {
 
 /* read command line switch "-n LINES" */
 while (($k = array_search("-n", $local_args)) !== false) {
-  $opt_rollback_lines = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-n"))
+    err("Command line options '-n' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-n";
+  $opt_rollback_amount = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
   array_splice($local_args, $k, 2);
 }
 
@@ -164,8 +172,8 @@ foreach ($local_args as $_arg) {
 
 dbg("Runtime options:");
 dbg("..  opt_cols = " . ($opt_cols !== null ? $opt_cols : "(auto)"));
-dbg("..  opt_rollback_lines = " . $opt_rollback_lines);
-dbg("..  opt_rollback_bytes = " . $opt_rollback_bytes);
+dbg("..  opt_rollback_type = " . ($opt_rollback_type !== null ? $opt_rollback_type : "(lines)"));
+dbg("..  opt_rollback_amount = " . $opt_rollback_amount);
 dbg("..  opt_follow = " . ($opt_follow ? "true" : "false"));
 dbg("..  opt_filter = " . json_encode($opt_filter));
 
@@ -217,11 +225,15 @@ elseif ($file == "") {
 }
 
 $tail = new Tail($file, $opt_follow);
-if ($opt_rollback_bytes === true) {
+if ($opt_rollback_type == "-S") {
   $tail->rollback();
 }
+elseif ($opt_rollback_type == "-B") {
+  $tail->rollbackBytes($opt_rollback_amount);
+}
 else {
-  $tail->rollbackBytes($opt_rollback_bytes);
+  /* until we have the real lines-based rollback, estimate */
+  $tail->rollbackBytes($opt_rollback_amount * 195);
 }
 
 $Months = array(
@@ -261,22 +273,38 @@ function parse_error_log_line($str)
 
 $current_date = null;
 while (($str = $tail->read()) !== false) {
-  // 81.202.254.26 WonderSeller TLSv1.2 [17/May/2018:00:58:13 +0200] "GET /sell/articles/cards HTTP/1.1" 200 98356 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"
+
+  // FIXME: only for testing!
+  if ((substr($str, 0, 1) == "#") || ($str == "")) {
+    print $str . "\n";
+    continue;
+  }
+  if (substr($str, 0, 1) == "=") {
+    continue;
+  }
+  // print $str . "\n";
 
   // [Sat May 19 17:06:19.120115 2018] [core:info] [pid 20290] [client 66.249.66.159:58972] AH00128: File does not exist: /home/web/decktutor/htdocs/ads.txt
   // [Sat May 19 17:10:13.895016 2018] [ssl:info] [pid 20410] [client 2a01:4f8:13b:184e::2:38470] AH01964: Connection to child 19 established (server decktutor.com:443)
   // [Sun May 27 03:13:45.850986 2018] [ssl:info] [pid 12158] SSL Library Error: error:1408F081:SSL routines:SSL3_GET_RECORD:block cipher pad is wrong
+  // [Sat Aug 26 17:09:03.013740 2023] [mpm_prefork:notice] [pid 65] AH00169: caught SIGTERM, shutting down
 
   if (!preg_match('{^' .
-        '\[(?P<datetime>[A-Za-z0-9:\. ]+)\] ' .   // [Sat May 19 17:10:13.895016 2018]
-        '\[(?P<channel>\w+):(?P<level>\w+)\] ' .  // [ssl:info]
-        '\[pid (?P<pid>\d+)(?::tid (?P<tid>\d+))?\] ' .  // [pid 20410] or [pid 30712:tid 30712]
-        '(?P<prefix>[^\[]*)' .                       // (104)Connection reset by peer:
-        '(?:\[client (?P<ip>[0-9a-f:\.]+)\] )?' .     // [client 66.249.66.159:58972]
+        // [Sat May 19 17:10:13.895016 2018]
+        '\[(?P<datetime>[A-Za-z0-9:\. ]+)\] ' .
+        // [ssl:info]
+        '\[(?P<channel>\w*):(?P<level>\w+)\] ' .
+        // [pid 20410] or [pid 30712:tid 30712]
+        '\[pid (?P<pid>\d+)(?::tid (?P<tid>\d+))?\] ' .
+        // (104)Connection reset by peer:
+        // '(?P<prefix>[^\[:]*)' .
+        // [client 66.249.66.159:58972]
+        '(?:\[client (?P<ip>[0-9a-f:\.]+)\] )?' .
         '(?P<message>.*)$}', $str, $regp)) {
-    $err = preg_last_error();
-    print "PREG ERROR=" . $err . "\n";
-    goto err;
+    print "\n*** FAILED PARSING 1 ***\n";
+    print "LINE: $str\n";
+    print "************************\n\n";
+    continue;
   }
 
 // var_dump($regp);
@@ -287,21 +315,34 @@ while (($str = $tail->read()) !== false) {
       '(\w{3}) ' . // month short name
       '0?(\d+) ' . // month day
       '(\d{2}:\d{2}:\d{2})\.\d+ ' . // time
-      '(\d{4})$/', $regp['datetime'], $regxp))
-    goto err;
+      '(\d{4})$/', $regp['datetime'], $regxp)) {
+    print "\n*** FAILED PARSING 2 ***\n";
+    print "LINE: $str\n";
+    print "************************\n\n";
+    continue;
+  }
+
   $_date_month_name = $regxp[1];
   $_date_day = (int) $regxp[2];
   $_time = $regxp[3];
   $_date_year = $regxp[4];
   $_date_month = array_keys($Months, $_date_month_name);
-  if ($_date_month === false)
-    goto err;
+  if ($_date_month === false) {
+    print "\n*** FAILED PARSING 3 ***\n";
+    print "LINE: $str\n";
+    print "************************\n\n";
+    continue;
+  }
   $_date = sprintf("%02d/%s/%4d", $_date_day, $_date_month_name, $_date_year);
 
   /* further parsing of the ip address */
   if ($regp['ip'] != "") {
-    if (!preg_match('/^([0-9a-f:.]+)\:(\d+)$/', $regp['ip'], $regxp))
-      goto err;
+    if (!preg_match('/^([0-9a-f:.]+)\:(\d+)$/', $regp['ip'], $regxp)) {
+      print "\n*** FAILED PARSING 3 ***\n";
+      print "LINE: $str\n";
+      print "************************\n\n";
+      continue;
+    }
     $_ip_addr = $regxp[1];
     $_ip_port = $regxp[2];
   }
@@ -311,14 +352,16 @@ while (($str = $tail->read()) !== false) {
   }
 
   if ($_date !== $current_date) {
-    print "\n\e[1m=== " . $_date . " ===\e[m\n";
+    print "\n\x1b[1m=== " . $_date . " ===\x1b[m\n";
     $current_date = $_date;
   }
 
-  $_prefix = trim($regp['prefix']);
+  // $_prefix = trim($regp['prefix']);
+  $_prefix = "";
   $_message = trim($regp['message']);
+
   if ($_prefix != "")
-    $_message = $_prefix . " " . $_message;
+    $_message = "|" . $_prefix . "|" . $_message . "|";
 
   /* check if we filter out this message */
   $filtered = false;
@@ -333,17 +376,16 @@ while (($str = $tail->read()) !== false) {
   // if ($filtered === $FilterExclude)
     // continue;
 
-  // print formatted line
-  $line = sprintf("%8s %-40s %-10s %-8s %s",
-      /* 1 */ $_time,
-      /* 2 */ $_ip_addr,
-      /* 3 */ $regp['channel'],   // reqtimeout
-      /* 4 */ $regp['level'],
-      /* 5 */ $_message);
+  // print formatted line  [mpm_prefork]
+  // print formatted line  [lbmethod_heartbeat]
+  //                ts ex   ip   lv    ch mm
+  $line = sprintf("%8s %s%-40s %-8s %-20s %s",
+      /* ts */ $_time,
+      /* ex */ "\x1b[41;37;1m!\x1b[m",
+      /* ip */ $_ip_addr,
+      /* lv */ $regp['level'],
+      /* ch */ ($regp['channel'] != "" ? "[" . $regp['channel'] . "]" : "-"),
+      /* mm */ $_message);
 
   print WTools::truncConsoleLine($line, $opt_cols) . "\n";
-  continue;
-
- err:
-  print "FAILED $str\n";
 }

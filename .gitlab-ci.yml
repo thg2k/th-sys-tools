@@ -12,6 +12,7 @@ tests_basic:
     RUNTIME_EXTENSIONS: xdebug
   script:
    - ./tests/standalone/test_tail_http_access_log.php
+   - ./tests/standalone/test_tail_http_error_log.php
 
 tests_php_versions:
   stage: test
@@ -32,3 +33,4 @@ tests_php_versions:
       - RUNTIME_VERSION: php82
   script:
    - ./tests/standalone/test_tail_http_access_log.php
+   - ./tests/standalone/test_tail_http_error_log.php

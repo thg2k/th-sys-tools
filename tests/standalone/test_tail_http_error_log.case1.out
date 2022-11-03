@@ -1,0 +1,6 @@
+# generic stuff
+
+[1m=== 26/Aug/2023 ===[m
+17:09:03 [41;37;1m![m                                         notice   [mpm_prefork]        AH00169: caught SIGTERM, shutting down
+16:15:59 [41;37;1m![m                                         notice   [lbmethod_heartbeat] AH02282: No slotmem from mod_heartmonitor
+16:55:43 [41;37;1m![m85.25.218.153                            error    -                    PHP Notice:  Undefined index: db_password in /srv/app/htdocs/config-local-2.inc.php on line 38

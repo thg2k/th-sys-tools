@@ -47,7 +47,7 @@ function dbg($message)
  */
 function print_usage($fd, $progname)
 {
-  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE] [-f] <file> [filters...]\n", $progname);
+  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE|-n LINES] [-f] <file> [filters...]\n", $progname);
 }
 
 /**
@@ -72,8 +72,8 @@ function sys_get_term_cols()
 $opt_help = false;
 $opt_debug = false;
 $opt_cols = null;
-$opt_rollback_bytes = 32768;
-$opt_rollback_lines = 5;
+$opt_rollback_type = null;
+$opt_rollback_amount = 5;
 $opt_follow = false;
 $opt_filter = array();
 $files = array();
@@ -101,7 +101,9 @@ while (($k = array_search("-c", $local_args)) !== false) {
 
 /* read command line switch "-S" */
 while (($k = array_search("-S", $local_args)) !== false) {
-  $opt_rollback_bytes = true;
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-S"))
+    err("Command line options '-S' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-S";
   array_splice($local_args, $k, 1);
 }
 
@@ -110,9 +112,12 @@ while (($k = array_search("-B", $local_args)) !== false) {
   $_arg = (string) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
   if (!preg_match('/^(\d+)(M|k)?$/', $_arg, $regp))
     err("Invalid syntax \"$_arg\" for filter, must be a bytes unit");
-  $opt_rollback_bytes = (int) $regp[1];
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-B"))
+    err("Command line options '-B' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-B";
+  $opt_rollback_amount = (int) $regp[1];
   if (!empty($regp[2])) {
-    $opt_rollback_bytes *= ($regp[2] == "M" ? 1024 * 1024 :
+    $opt_rollback_amount *= ($regp[2] == "M" ? 1024 * 1024 :
         ($regp[2] == "k" ? 1024 : 1));
   }
   array_splice($local_args, $k, 2);
@@ -120,7 +125,10 @@ while (($k = array_search("-B", $local_args)) !== false) {
 
 /* read command line switch "-n LINES" */
 while (($k = array_search("-n", $local_args)) !== false) {
-  $opt_rollback_lines = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  if (($opt_rollback_type !== null) && ($opt_rollback_type != "-n"))
+    err("Command line options '-n' and '$opt_rollback_type' are incompatible");
+  $opt_rollback_type = "-n";
+  $opt_rollback_amount = (int) (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
   array_splice($local_args, $k, 2);
 }
 
@@ -164,8 +172,8 @@ foreach ($local_args as $_arg) {
 
 dbg("Runtime options:");
 dbg("..  opt_cols = " . ($opt_cols !== null ? $opt_cols : "(auto)"));
-dbg("..  opt_rollback_lines = " . $opt_rollback_lines);
-dbg("..  opt_rollback_bytes = " . $opt_rollback_bytes);
+dbg("..  opt_rollback_type = " . ($opt_rollback_type !== null ? $opt_rollback_type : "(lines)"));
+dbg("..  opt_rollback_amount = " . $opt_rollback_amount);
 dbg("..  opt_follow = " . ($opt_follow ? "true" : "false"));
 dbg("..  opt_filter = " . json_encode($opt_filter));
 
@@ -217,11 +225,15 @@ elseif ($file == "") {
 }
 
 $tail = new Tail($file, $opt_follow);
-if ($opt_rollback_bytes === true) {
+if ($opt_rollback_type == "-S") {
   $tail->rollback();
 }
+elseif ($opt_rollback_type == "-B") {
+  $tail->rollbackBytes($opt_rollback_amount);
+}
 else {
-  $tail->rollbackBytes($opt_rollback_bytes);
+  /* until we have the real lines-based rollback, estimate */
+  $tail->rollbackBytes($opt_rollback_amount * 305);
 }
 
 /* support function to format colored HTTP status (width: 3 chars) */
@@ -445,7 +457,13 @@ while (($str = $tail->read()) !== false) {
   }
 
   if ($regp['date'] !== $current_date) {
-    print "\n\x1b[1m=== " . $regp['date'] . " ===\x1b[m\n";
+    // print "\n\x1b[1m=== " . $regp['date'] . " ===\x1b[m\n";
+    print "\n\x1b[1m=== " . $regp['date'] . " ===\x1b[m" .
+        str_repeat(" ", 32) .
+        " SSL   STAT SIZE  TIME  PROTOCOL / REQUEST / REFERER / USER AGENT\n";
+    // print "  TIME       CLIENT                                 SSL   STAT SIZE  TIME  PROTOCOL / REQUEST / REFERER / USER AGENT\n";
+    //    "00:28:12| 54.216.39.50                            |PLAIN  |403|  < |  -   |{1.0} GET /                        (no referer)  Mozilla/5.0 (compatible; NetcraftSurveyAgent/1.0; +info@netcraft.com)
+    //    "00:28:12| 54.216.39.50                            |TLS1.2 |403|  < |  -   |{1.0} GET /                        (no referer)  Mozilla/5.0 (compatible; NetcraftSurveyAgent/1.0; +info@netcraft.com)
     $current_date = $regp['date'];
   }
 
