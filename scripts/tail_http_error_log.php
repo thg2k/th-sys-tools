@@ -57,7 +57,10 @@ function print_usage($fd, $progname)
  */
 function sys_get_term_cols()
 {
-  $cols = (int) exec("tput cols 2>/dev/null");
+  /* tput uses stderr to query the terminal, and it outputs there in case of
+   * error, i found no way to suppress that behaviour, as '2>/dev/null' is not
+   * an option */
+  $cols = (int) exec("TERM=\${TERM:-linux} tput cols");
   if (!$cols)
     return 80;
 

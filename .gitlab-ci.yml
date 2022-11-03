@@ -3,6 +3,8 @@ stages:
 
 tests_basic:
   stage: test
+  except:
+    - tags
   image: registry.gitlab.com/thgnet/docker-centos7wre:v2
   variables:
     RUNTIME_TYPE: development
@@ -14,6 +16,8 @@ tests_basic:
 tests_php_versions:
   stage: test
   needs: [ "tests_basic" ]
+  except:
+    - tags
   image: registry.gitlab.com/thgnet/docker-centos7wre:v2
   variables:
     RUNTIME_TYPE: development
