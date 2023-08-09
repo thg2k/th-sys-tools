@@ -1,12 +1,10 @@
 #!/bin/bash
 
-GLMANAGER="/srv"
+GDM_ROOT="/srv"
+GDM_VERSION="v1"
 
 set -eu
-
-cd $GLMANAGER
-
-GLMANAGER_VERSION="v1"
+cd $GDM_ROOT
 
 # Create "dist" config file for comparison
 rm -f gitlab_docker_manager.conf-dist-tmp
@@ -31,18 +29,20 @@ GLMANAGER_BACKUP_EXTERNAL_TARGET=""
 
 GLMANAGER_BACKUP_EXTERNAL_PATH=""
 _CONF_
-if ! cmp -s gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+if ! cmp -s gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GDM_VERSION
 then
-  rm -f gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
-  echo "Creating template config file '$GLMANAGER/gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION'" >&2
-  cp gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION
+  rm -f gitlab_docker_manager.conf-dist-$GDM_VERSION
+  echo "Creating template config file '$GDM_ROOT/gitlab_docker_manager.conf-dist-$GDM_VERSION'" >&2
+  cp gitlab_docker_manager.conf-dist-tmp gitlab_docker_manager.conf-dist-$GDM_VERSION
 fi
+rm -f gitlab_docker_manager.conf-dist-tmp
+. gitlab_docker_manager.conf-dist-$GDM_VERSION
 
 # Check for local configuration file
 if [ ! -e gitlab_docker_manager.conf ]
 then
   echo "Creating config file '/srv/gitlab_docker_manager.conf'" >&2
-  cp gitlab_docker_manager.conf-dist-$GLMANAGER_VERSION gitlab_docker_manager.conf
+  cp gitlab_docker_manager.conf-dist-$GDM_VERSION gitlab_docker_manager.conf
 fi
 . gitlab_docker_manager.conf
 
@@ -54,7 +54,7 @@ then
 fi
 if [ "$GLMANAGER_IMAGE_VERSION" = "x.y.z" -o "$GLMANAGER_HOSTNAME" = "git.abc.xyz" ]
 then
-  echo "*** Please edit file '$GLMANAGER/gitlab_docker_manager.conf' ***" >&2
+  echo "*** Please edit file '$GDM_ROOT/gitlab_docker_manager.conf' ***" >&2
   exit 1
 fi
 
@@ -99,6 +99,7 @@ then
   exit 1
 fi
 
+# Use colors if STDIN is available
 if [ -t 1 ]
 then
   RUNTIME_COLORS="true"
@@ -190,9 +191,12 @@ xargs_volumes_mount="
       --volume /srv/gitlab/config:/etc/gitlab
       --volume /srv/gitlab/data:/var/opt/gitlab
       --volume /srv/gitlab/logs:/var/log/gitlab"
-xargs_ulimits="
+xargs_xtras=(
+      --env GITLAB_PRE_RECONFIGURE_SCRIPT="if test -e /etc/gitlab/docker-wrapper-prehook.sh; then source /etc/gitlab/docker-wrapper-prehook.sh; fi"
+      --env GITLAB_POST_RECONFIGURE_SCRIPT="if test -e /etc/gitlab/docker-wrapper-posthook.sh; then source /etc/gitlab/docker-wrapper-posthook.sh; fi"
+      --env GITLAB_SKIP_TAIL_LOGS=true
       --ulimit nproc=-1
-      --ulimit sigpending=62793"
+      --ulimit sigpending=62793)
 
 # Main execution
 case "$RUNTIME_MODE" in
@@ -203,7 +207,7 @@ case "$RUNTIME_MODE" in
       $xargs_hostname \
       $xargs_publish_ports \
       $xargs_volumes_mount \
-      $xargs_ulimits \
+      "${xargs_xtras[@]}" \
       --restart unless-stopped \
       gitlab/$GLMANAGER_IMAGE_NAME
     ;;
@@ -215,7 +219,7 @@ case "$RUNTIME_MODE" in
       $xargs_hostname \
       $xargs_publish_ports \
       $xargs_volumes_mount \
-      $xargs_ulimits \
+      "${xargs_xtras[@]}" \
       --restart unless-stopped \
       --detach \
       gitlab/$GLMANAGER_IMAGE_NAME
@@ -228,7 +232,7 @@ case "$RUNTIME_MODE" in
       $xargs_hostname \
       $xargs_publish_ports \
       $xargs_volumes_mount \
-      $xargs_ulimits \
+      "${xargs_xtras[@]}" \
       -it \
       gitlab/$GLMANAGER_IMAGE_NAME
     ;;
@@ -240,14 +244,14 @@ case "$RUNTIME_MODE" in
       $xargs_hostname \
       $xargs_publish_ports \
       $xargs_volumes_mount \
-      $xargs_ulimits \
+      "${xargs_xtras[@]}" \
       -it \
       gitlab/$GLMANAGER_IMAGE_NAME \
       /bin/bash
     ;;
 
   stop|s)
-    cmd docker stop -t 120 gitlab
+    cmd docker stop -t 300 gitlab
     ;;
 
   remove|rm)
@@ -258,7 +262,7 @@ case "$RUNTIME_MODE" in
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
     [ -d "$GLMANAGER_BACKUP_DIR" ] || err "Backup path \"$GLMANAGER_BACKUP_DIR\" is not a directory!"
     mkdir -p "$GLMANAGER_BACKUP_DIR/manual"
-    fpath="$GLMANAGER_BACKUP_DIR/manual/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz"
+    fpath="$GLMANAGER_BACKUP_DIR/manual/$GLMANAGER_HOSTNAME-`date +%Y%m%d`-v$xcfgver.tar.gz"
     [ -e "$fpath" ] && err "Output file '$fpath' already exists!"
     out "Creating backup in '$fpath'..."
     cmd tar -zc -f "$fpath" gitlab
@@ -270,7 +274,7 @@ case "$RUNTIME_MODE" in
     mkdir -p "$GLMANAGER_BACKUP_DIR/auto"
     mkdir .gitlab_docker_manager__backup.lock ||
       err "Failed to create lock sentinel, already running or previously failed!"
-    fpath="$GLMANAGER_BACKUP_DIR/auto/gitlab-backup-`date +%Y%m%d`-v$xcfgver.tar.gz.gpg"
+    fpath="$GLMANAGER_BACKUP_DIR/auto/$GLMANAGER_HOSTNAME-`date +%Y%m%d`-v$xcfgver.tar.gz.gpg"
     if [ -e "$fpath" ]
     then
       rmdir .gitlab_docker_manager__backup.lock
