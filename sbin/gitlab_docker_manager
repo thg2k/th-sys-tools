@@ -25,6 +25,8 @@ GLMANAGER_BACKUP_DIR="/mnt/gitlab-backups"
 
 GLMANAGER_BACKUP_GPG_TARGET=""
 
+GLMANAGER_BACKUP_ROTATE_FILES="12"
+
 GLMANAGER_BACKUP_EXTERNAL_TARGET=""
 
 GLMANAGER_BACKUP_EXTERNAL_PATH=""
@@ -117,6 +119,14 @@ err() {
   fi
   exit 1
 }
+warn() {
+  if [ "$RUNTIME_COLORS" = "true" ]
+  then
+    echo -en "\e[31;1mWarning: $1\e[m\n\n" >&2
+  else
+    echo -en "Warning: $1\n\n" >&2
+  fi
+}
 out() {
   if [ "$RUNTIME_COLORS" = "true" ]
   then
@@ -168,14 +178,13 @@ ts_warn() {
 if [ -e gitlab/config/gitlab.rb ]
 then
   xcfgver=$(sed -n 's/^## @TEMPLATE_VERSION \(.*\)/\1/p' gitlab/config/gitlab.rb)
-  if [ "$xcfgver" = "$GLMANAGER_IMAGE_VERSION" ]
+  if [ "$xcfgver" != "$GLMANAGER_IMAGE_VERSION" ]
   then
-    echo "Warning: Config file version $xcfgver differs from image $GLMANAGER_IMAGE_VERSION" >&2
-  else
-    echo "Config file version is $xcfgver" >&2
+    warn "Config file version '$xcfgver' differs from image '$GLMANAGER_IMAGE_VERSION'" >&2
   fi
 else
-  xcfgver="Config file not found" >&2
+  xcfgver=""
+  warn "Config file not found"
 fi
 
 # Common docker argument blocks
@@ -264,6 +273,11 @@ case "$RUNTIME_MODE" in
     mkdir -p "$GLMANAGER_BACKUP_DIR/manual"
     fpath="$GLMANAGER_BACKUP_DIR/manual/$GLMANAGER_HOSTNAME-`date +%Y%m%d`-v$xcfgver.tar.gz"
     [ -e "$fpath" ] && err "Output file '$fpath' already exists!"
+    crunning=$(docker inspect --format="{{.State.Running}}" gitlab)
+    if [ "$crunning" == "true" ]
+    then
+      err "The instance is running, refusing to backup."
+    fi
     out "Creating backup in '$fpath'..."
     cmd tar -zc -f "$fpath" gitlab
     ;;
@@ -274,6 +288,12 @@ case "$RUNTIME_MODE" in
     mkdir -p "$GLMANAGER_BACKUP_DIR/auto"
     mkdir .gitlab_docker_manager__backup.lock ||
       err "Failed to create lock sentinel, already running or previously failed!"
+    xtailarg="+$((GLMANAGER_BACKUP_ROTATE_FILES + 1))"
+    for xdel in $(ls -1t $GLMANAGER_BACKUP_DIR/auto | tail -n $xtailarg)
+    do
+      ts_out "Deleting backup file rotating out: $xdel"
+      rm -f "$GLMANAGER_BACKUP_DIR/auto/$xdel"
+    done
     fpath="$GLMANAGER_BACKUP_DIR/auto/$GLMANAGER_HOSTNAME-`date +%Y%m%d`-v$xcfgver.tar.gz.gpg"
     if [ -e "$fpath" ]
     then
@@ -285,7 +305,7 @@ case "$RUNTIME_MODE" in
     if [ "$crunning" != "true" ]
     then
       rmdir .gitlab_docker_manager__backup.lock
-      err "The istance is not running, refusing to backup."
+      err "The instance is not running, refusing to backup."
     fi
     ts_out "Stopping GitLab instance..."
     cmd docker stop -t 600 gitlab
@@ -298,10 +318,10 @@ case "$RUNTIME_MODE" in
       cmd find $GLMANAGER_BACKUP_DIR/auto -type f -mtime +15 -print -delete
       if [ -n "${GLMANAGER_BACKUP_EXTERNAL_TARGET:-}" -a -n "${GLMANAGER_BACKUP_EXTERNAL_PATH:-}" ]
       then
+        ts_out "Flushing old backups in the external server..."
+        ssh "$GLMANAGER_BACKUP_EXTERNAL_TARGET" "set -e; cd $GLMANAGER_BACKUP_EXTERNAL_PATH; ls -1t | tail -n $xtailarg | xargs rm -vf" || :
         ts_out "Propagating the backup to external server..."
         cmd scp -p "$fpath" "$GLMANAGER_BACKUP_EXTERNAL_TARGET:$GLMANAGER_BACKUP_EXTERNAL_PATH/" || :
-        ts_out "Flushing old backups in the external server..."
-        ssh "$GLMANAGER_BACKUP_EXTERNAL_TARGET" "set -ex; cd $GLMANAGER_BACKUP_EXTERNAL_PATH; find . -type f -mtime +15 -print -delete" || :
       else
         ts_out "Skipping propagation to external server (not defined)"
       fi
@@ -317,7 +337,7 @@ case "$RUNTIME_MODE" in
   copydistconfig|cdc)
     xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
     fdistconf="/srv/gitlab/config/gitlab-dist-v$xrunver.rb"
-    out "[+++] Copying dist config v$xrunver to '$fdistconf'..."
+    out "Copying dist config v$xrunver to '$fdistconf'..."
     cmd docker cp gitlab:/opt/gitlab/etc/gitlab.rb.template $fdistconf
     cmd sed -i -e '/GitLab configuration settings/a ## @TEMPLATE_VERSION '$xrunver $fdistconf
     ;;
@@ -327,19 +347,27 @@ case "$RUNTIME_MODE" in
     ;;
 
   patchconfig|pc)
-    xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
+    xrunver=$(docker cp gitlab:/opt/gitlab/embedded/service/gitlab-rails/VERSION - | tar x -O VERSION)
     [ -e "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xcfgver.rb"
     [ -e "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" ] || err "Couldn't locate dist config 'gitlab-dist-v$xrunver.rb"
-    diff -u "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" > "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb" || :
-    out "Applying patch to current configuration file..."
-    cmd patch -p0 "/srv/gitlab/config/gitlab.rb" "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb"
+    if [ "$xcfgver" != "$xrunver" ]
+    then
+      diff -u "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" > "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb" || :
+      out "Applying patch to current configuration file ($xcfgver -> $xrunver)..."
+      cmd patch -p0 "/srv/gitlab/config/gitlab.rb" "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb"
+      cmd cp "/srv/gitlab/config/gitlab-dist-v$xrunver.rb" "/srv/gitlab/config/gitlab-dist.rb"
+      out "Here is the patch that has been applied:"
+      cat "/srv/gitlab/config/PATCH-v$xcfgver-v$xrunver.rb" | colordiff
+    else
+      out "Your config file is already up to date ($xrunver)"
+    fi
     ;;
 
   backupconfig|bkc)
-    xcfged="1"
     [ -n "$xcfgver" ] || err "Failed to obtain config template version (@TEMPLATE_VERSION)"
-    out "[+++] Backing up runtime config v$xcfgver..."
+    xcfged="1"
+    out "Backing up runtime config v$xcfgver..."
     cmd cp "/srv/gitlab/config/gitlab.rb" "/srv/gitlab/config/gitlab-config-v$xcfgver-$xcfged.rb"
     cmd diff -u "/srv/gitlab/config/gitlab-dist-v$xcfgver.rb" "/srv/gitlab/config/gitlab.rb" > "/srv/gitlab/config/gitlab-config-v$xcfgver-$xcfged.patch"
     ;;
