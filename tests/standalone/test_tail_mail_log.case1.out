@@ -1,0 +1,55 @@
+# Fun stuff
+
+[1m=== 2022-02-07 ===[m
+15:09:09 [31;1m10.69.0.1                            dovecot: auth: login(?,10.69.0.1): Username character disallowed by auth_username_chars: 0x7d (username: }tnjuta)[m
+# Two types of hostnames that do not resolve correctly (reverse without forward)
+
+[1m=== 2022-02-08 ===[m
+15:51:20 10.69.0.2                            postfix/smtpd(7979): hostname [bogus2.domain.cxm] does not resolve back[m
+
+[1m=== 2022-02-09 ===[m
+09:35:35 10.69.0.3                            postfix/smtpd(16298): hostname [bogus3.domain.cxm] does not resolve back (Name or service not known)[m
+# Sample delivery
+
+[1m=== 2022-02-08 ===[m
+15:51:20 [1m10.72.0.1                            postfix/smtpd(7979): connect from unknown[m
+15:51:20 10.72.0.1                            policyd-spf(7986): result=None; idnt=helo; helo=valid1.domain.cxm; from=professionalspammer@domain.cxm; recv=johnny@thgnet.it[m
+15:51:20 10.72.0.1                            policyd-spf(7986): result=Pass; idnt=mailfrom; helo=valid1.domain.cxm; from=professionalspammer@domain.cxm; recv=johnny@thgnet.it[m
+
+[1m=== 2022-02-09 ===[m
+11:18:29 10.72.0.2                            policyd-spf(29735): result=Fail; idnt=helo; helo=somemail.cxm; from=activation@somemail.cxm; recv=johnny@thgnet.it[m
+11:18:29 10.72.0.2                            postfix/smtpd(29730): NOQUEUE: reject RCPT: 550 5.7.1 <johnny@thgnet.it>: Recipient address rejected: Message rejected due to: SPF fail - not authorized. Please see http://www.openspf.net/Why?s=helo;id=somemail.cxm;ip=10.72.0.2;r=johnny@thgnet.it; from=<activation@somemail.cxm> to=<johnny@thgnet.it> proto=ESMTP helo=<somemail.cxm>[m
+
+[1m=== 2022-02-08 ===[m
+15:51:20 10.72.0.1                CAAD83DB85  postfix/smtpd(7979): client=unknown[m
+
+[1m=== 2022-02-10 ===[m
+09:52:44 10.3.2.1                 8B2BF3DB85  postfix/smtpd(9857): client=myhomehost.thgnet.it, sasl_method=LOGIN, sasl_username=johnny@thgnet.it[m
+
+[1m=== 2022-02-08 ===[m
+15:51:21 10.72.0.1                CAAD83DB85  postfix/cleanup(8616): message-id=<688138725830859688133603151446326@valid1.domain.cxm>[m
+15:51:21 10.72.0.1                CAAD83DB85  opendkim(958): [10.72.0.1] [10.72.0.1] not internal[m
+15:51:21 10.72.0.1                CAAD83DB85  opendkim(958): not authenticated[m
+15:51:21 10.72.0.1                CAAD83DB85  opendkim(958): no signature data[m
+15:51:21 10.72.0.1                CAAD83DB85  postfix/qmgr(2815): from=<professionalspammer@domain.cxm>, size=13289, nrcpt=1 (queue active)[m
+15:51:21 10.72.0.1                CAAD83DB85  postfix/virtual(8617): to=<johnny@thgnet.it>, relay=virtual, delay=0.61, delays=0.59/0.02/0/0.01, dsn=2.0.0, status=sent (delivered to mailbox)[m
+15:51:21 **UNKNOWN**              9AE1819E818 postfix/smtp(16294): to=<blacklisted@tiscali.it>, relay=etb-1.mail.tiscali.it[213.205.33.62]:25, delay=811, delays=771/0/40/0, dsn=4.0.0, status=deferred (host etb-1.mail.tiscali.it[213.205.33.62] refused to talk to me: 554 cmgw-3.mail.tiscali.it  ESMTP - Too much Spam from your IP (blacklisted for 24hrs))[m
+15:51:21 10.72.0.1                CAAD83DB85  postfix/qmgr(2815): removed[m
+15:51:21 [1m10.72.0.1                            postfix/smtpd(7979): disconnect from unknown[m
+15:51:21 [1m10.101.1.1                           postfix/smtpd(563): disconnect from unknown helo=1 mail=1 rcpt=1 data=1 quit=1 commands=5[m
+
+[1m=== 2022-02-09 ===[m
+10:48:05 [31;1m10.69.0.3                            dovecot: auth: passwd-file(dubai@thgnet.it): unknown user[m
+10:48:05 10.69.0.3                            postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL LOGIN authentication failed: UGFzc3dvcmQ6[m
+10:48:05 10.69.0.3                            postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL PLAIN authentication failed:[m
+10:48:05 10.69.0.3                            postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL PLAIN authentication failed: xyz[m
+
+[1m=== 2022-11-01 ===[m
+16:18:33 10.69.0.4                            postfix/smtpd(5691): timeout after AUTH[m
+
+[1m=== 2022-08-27 ===[m
+14:39:32 [31;1m79.110.62.66                         dovecot: auth: passwd-file(scanner): unknown user (given password: scanner)[m
+14:17:08 [31;1m94.156.102.120                       dovecot: auth-worker: sql(test): unknown user (given password: abcd1234)[m
+
+[1m=== 2022-11-30 ===[m
+17:45:53 **UNKNOWN**              9AE1819E818 postfix/smtp(16294): host etb-4.mail.tiscali.it[213.205.33.63] refused to talk to me: 554 cmgw-1.mail.tiscali.it  ESMTP - Too much Spam from your IP (blacklisted for 24hrs)[m

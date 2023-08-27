@@ -1,0 +1,31 @@
+# Fun stuff
+Feb  7 15:09:09 mailsrv dovecot: auth: login(?,10.69.0.1): Username character disallowed by auth_username_chars: 0x7d (username: }tnjuta)
+# Two types of hostnames that do not resolve correctly (reverse without forward)
+Feb  8 15:51:20 mailsrv postfix/smtpd[7979]: warning: hostname bogus2.domain.cxm does not resolve to address 10.69.0.2
+Feb  9 09:35:35 mailsrv postfix/smtpd[16298]: warning: hostname bogus3.domain.cxm does not resolve to address 10.69.0.3: Name or service not known
+# Sample delivery
+Feb  8 15:51:20 mailsrv postfix/smtpd[7979]: connect from unknown[10.72.0.1]
+Feb  8 15:51:20 mailsrv policyd-spf[07986]: None; identity=helo; client-ip=10.72.0.1; helo=valid1.domain.cxm; envelope-from=professionalspammer@domain.cxm; receiver=johnny@thgnet.it
+Feb  8 15:51:20 mailsrv policyd-spf[07986]: Pass; identity=mailfrom; client-ip=10.72.0.1; helo=valid1.domain.cxm; envelope-from=professionalspammer@domain.cxm; receiver=johnny@thgnet.it
+Feb  9 11:18:29 mailsrv policyd-spf(29735): Fail; identity=helo; client-ip=10.72.0.2; helo=somemail.cxm; envelope-from=activation@somemail.cxm; receiver=johnny@thgnet.it
+Feb  9 11:18:29 mailsrv postfix/smtpd(29730): NOQUEUE: reject: RCPT from unknown[10.72.0.2]: 550 5.7.1 <johnny@thgnet.it>: Recipient address rejected: Message rejected due to: SPF fail - not authorized. Please see http://www.openspf.net/Why?s=helo;id=somemail.cxm;ip=10.72.0.2;r=johnny@thgnet.it; from=<activation@somemail.cxm> to=<johnny@thgnet.it> proto=ESMTP helo=<somemail.cxm>
+Feb  8 15:51:20 mailsrv postfix/smtpd[7979]: CAAD83DB85: client=unknown[10.72.0.1]
+Feb 10 09:52:44 mailsrv postfix/smtpd[9857]: 8B2BF3DB85: client=myhomehost.thgnet.it[10.3.2.1], sasl_method=LOGIN, sasl_username=johnny@thgnet.it
+Feb  8 15:51:21 mailsrv postfix/cleanup[8616]: CAAD83DB85: message-id=<688138725830859688133603151446326@valid1.domain.cxm>
+Feb  8 15:51:21 mailsrv opendkim[958]: CAAD83DB85: [10.72.0.1] [10.72.0.1] not internal
+Feb  8 15:51:21 mailsrv opendkim[958]: CAAD83DB85: not authenticated
+Feb  8 15:51:21 mailsrv opendkim[958]: CAAD83DB85: no signature data
+Feb  8 15:51:21 mailsrv postfix/qmgr[2815]: CAAD83DB85: from=<professionalspammer@domain.cxm>, size=13289, nrcpt=1 (queue active)
+Feb  8 15:51:21 mailsrv postfix/virtual[8617]: CAAD83DB85: to=<johnny@thgnet.it>, relay=virtual, delay=0.61, delays=0.59/0.02/0/0.01, dsn=2.0.0, status=sent (delivered to mailbox)
+Feb  8 15:51:21 mailsrv postfix/smtp[16294]: 9AE1819E818: to=<blacklisted@tiscali.it>, relay=etb-1.mail.tiscali.it[213.205.33.62]:25, delay=811, delays=771/0/40/0, dsn=4.0.0, status=deferred (host etb-1.mail.tiscali.it[213.205.33.62] refused to talk to me: 554 cmgw-3.mail.tiscali.it  ESMTP - Too much Spam from your IP (blacklisted for 24hrs))
+Feb  8 15:51:21 mailsrv postfix/qmgr[2815]: CAAD83DB85: removed
+Feb  8 15:51:21 mailsrv postfix/smtpd[7979]: disconnect from unknown[10.72.0.1]
+Feb  8 15:51:21 mailsrv postfix/smtpd[563]: disconnect from unknown[10.101.1.1] helo=1 mail=1 rcpt=1 data=1 quit=1 commands=5
+Feb  9 10:48:05 mailsrv dovecot: auth: passwd-file(dubai@thgnet.it,10.69.0.3): unknown user
+Feb  9 10:48:05 mailsrv postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL LOGIN authentication failed: UGFzc3dvcmQ6
+Feb  9 10:48:05 mailsrv postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL PLAIN authentication failed:
+Feb  9 10:48:05 mailsrv postfix/smtpd(25190): warning: unknown[10.69.0.3]: SASL PLAIN authentication failed: xyz
+Nov  1 16:18:33 mailsrv postfix/smtpd[5691]: timeout after AUTH from unknown[10.69.0.4]
+Aug 27 14:39:32 mailsrv dovecot: auth: passwd-file(scanner,79.110.62.66): unknown user (given password: scanner)
+Aug 27 14:17:08 mailsrv dovecot: auth-worker(1133): sql(test,94.156.102.120): unknown user (given password: abcd1234)
+Nov 30 17:45:53 mailsrv postfix/smtp[16294]: 9AE1819E818: host etb-4.mail.tiscali.it[213.205.33.63] refused to talk to me: 554 cmgw-1.mail.tiscali.it  ESMTP - Too much Spam from your IP (blacklisted for 24hrs)

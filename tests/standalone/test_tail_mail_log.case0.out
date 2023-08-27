@@ -1,0 +1,3 @@
+Usage: ./scripts/tail_mail_log.php [-c COLS] [-S|-B SIZE] [-f] <file> [filters...]
+Error: Unknown option '-Z'
+Usage: ./scripts/tail_mail_log.php [-c COLS] [-S|-B SIZE] [-f] <file> [filters...]
