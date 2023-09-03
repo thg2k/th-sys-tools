@@ -16,6 +16,14 @@ alias pico='nano'
 
 
 ##############################################################################
+# xmlcheck
+#
+# Checks for XML syntax, only outputs in case of errors
+#
+alias xmlcheck='xmllint -noout'
+
+
+##############################################################################
 # passwd-ls
 #
 # Formatted content of /etc/passwd
@@ -52,6 +60,50 @@ thdiff() {
 #
 thdu() {
   du -h --max-depth=1 | sort -h
+}
+
+
+##############################################################################
+# thsysdu
+#
+# Executes 'du' with one level of depth
+#
+thsysdu() {
+  (cd /; du -h --max-depth=0 $(find . -maxdepth 1 -not -type l -not -name proc -not -name dev -not -name sys -not -name .)) | sort -h
+}
+
+
+
+##############################################################################
+# auto_scp
+#
+# ...
+#
+auto_scp() {
+  if [ -z "$2" ]
+  then
+    echo "Usage: auto_scp <file> <user@host:target> [push|pull]" >&2
+    return 1
+  fi
+
+  case "$3" in
+    pull)
+      echo "=== Pulling initial file from '$2' onto '$1'..."
+      scp "$2" "$1" || return 1
+      ;;
+    push)
+      echo "=== Pushing initial file to '$2' from '$1'..."
+      scp "$1" "$2" || return 1
+      ;;
+  esac
+
+  echo "=== Waiting for changes to '$1', copying to '$2'..."
+  while inotifywait -q -e close_write "$1"
+  do
+    echo "=== Changes detected! Copying file..."
+    scp "$1" "$2"
+    echo "Waiting for more changes..."
+  done
 }
 
 
