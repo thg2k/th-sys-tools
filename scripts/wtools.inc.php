@@ -43,7 +43,7 @@ class Inotify {
    * @return bool ...
    */
   public function removeWatch($watch_descriptor) {
-    return inotify_rm_watch($watch_descriptor);
+    return inotify_rm_watch($this->_inotify, $watch_descriptor);
   }
 
   /**

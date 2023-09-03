@@ -216,7 +216,7 @@ case 'image ls';
     $xline = sprintf("%-40s %-14s %s %-20s %-20s",
         $toks[0], $toks[1], $toks[2], $toks[3], $toks[4]);
   }
-  
+
   $data = implode("\n", $data) . "\n";
   break;
 
@@ -224,7 +224,7 @@ default:
   die("Invalid action \"$action\"\n");
 }
 
-  
+
 // print "[+] Reparsing...\n";
 
 print (is_array($data) ? implode("", $data) : $data);

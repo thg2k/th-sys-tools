@@ -11,8 +11,14 @@ tests_basic:
     RUNTIME_VERSION: php72
     RUNTIME_EXTENSIONS: xdebug
   script:
-   - ./tests/standalone/test_tail_http_access_log.php
-   - ./tests/standalone/test_tail_http_error_log.php
+   - tests/run_static_checks.sh
+   - tests/run_tests.sh all
+  cache:
+    key:
+      files:
+       - tests/run_static_checks.sh
+    paths:
+      - .local.tools
 
 tests_php_versions:
   stage: test
@@ -32,5 +38,4 @@ tests_php_versions:
       - RUNTIME_VERSION: php81
       - RUNTIME_VERSION: php82
   script:
-   - ./tests/standalone/test_tail_http_access_log.php
-   - ./tests/standalone/test_tail_http_error_log.php
+   - tests/run_tests.sh php

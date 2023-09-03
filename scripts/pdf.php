@@ -152,4 +152,3 @@ sort_data($entries);
 
 
 display_entries($entries);
-
