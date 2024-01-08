@@ -5,7 +5,7 @@ tests_basic:
   stage: test
   except:
     - tags
-  image: registry.gitlab.com/thgnet/docker-centos7wre:v2
+  image: registry.gitlab.com/thgnet/docker-centos7wre:v2.1
   variables:
     RUNTIME_TYPE: development
     RUNTIME_VERSION: php72
@@ -25,7 +25,7 @@ tests_php_versions:
   needs: [ "tests_basic" ]
   except:
     - tags
-  image: registry.gitlab.com/thgnet/docker-centos7wre:v2
+  image: registry.gitlab.com/thgnet/docker-centos7wre:v2.1
   variables:
     RUNTIME_TYPE: development
   parallel:
@@ -37,5 +37,6 @@ tests_php_versions:
       - RUNTIME_VERSION: php80
       - RUNTIME_VERSION: php81
       - RUNTIME_VERSION: php82
+      - RUNTIME_VERSION: php83
   script:
    - tests/run_tests.sh php
