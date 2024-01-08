@@ -100,6 +100,14 @@ test_script_exec(2, array(
 
 /* ------------------------------------------------------------------------ */
 
+/* check the network lookup */
+test_script_exec(3, array(
+    './scripts/tail_http_access_log.php -c 999 -B 201 -W local ' .
+        './tests/standalone/test_tail_http_access_log.data.log',
+  ), "test_tail_http_access_log.case3");
+
+/* ------------------------------------------------------------------------ */
+
 print "[+] All tests successfull\n";
 
 exit(0);

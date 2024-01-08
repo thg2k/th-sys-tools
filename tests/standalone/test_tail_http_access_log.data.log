@@ -76,5 +76,5 @@
 1.1.1.1>10.0.1.1 - TLSv1.3 [04/Oct/2022:12:02:15 +0000] "GET / HTTP/1.1" 200 1024 "https://www.myreferer.cxm/" "Mozilla/5.0 (test data)" 9999499500
 
 # Final tests for rollbacks (these must be the last ones)
-10.0.1.1 - - [04/Oct/2022:23:59:01 +0000] "GET / HTTP/1.1" 200 1024 "" "Mozilla/5.0 (rbxxxx)" 10991
+127.0.0.1 - - [04/Oct/2022:23:59:01 +0000] "GET / HTTP/1.1" 200 1024 "" "Mozilla/5.0 (rbxxxx)" 10991
 10.0.1.1 - - [04/Oct/2022:23:59:02 +0000] "GET / HTTP/1.1" 200 1024 "" "Mozilla/5.0 (rbxxxx)" 10991

@@ -80,5 +80,5 @@
 12:02:15 [33m>[m10.0.1.1                                 TLSv1.3 [32m200[m   1k [31;1m10000s [m {1.1} [1mGET /[m                        [36mhttps://www.myreferer.cxm/[m  [35mMozilla/5.0 (test data)[m
 
 # Final tests for rollbacks (these must be the last ones)
-23:59:01  10.0.1.1                                 PLAIN   [32m200[m   1k   11ms {1.1} [1mGET /[m                        (no referer)  [35mMozilla/5.0 (rbxxxx)[m
+23:59:01  127.0.0.1                                PLAIN   [32m200[m   1k   11ms {1.1} [1mGET /[m                        (no referer)  [35mMozilla/5.0 (rbxxxx)[m
 23:59:02  10.0.1.1                                 PLAIN   [32m200[m   1k   11ms {1.1} [1mGET /[m                        (no referer)  [35mMozilla/5.0 (rbxxxx)[m

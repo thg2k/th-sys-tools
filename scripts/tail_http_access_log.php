@@ -47,7 +47,7 @@ function dbg($message)
  */
 function print_usage($fd, $progname)
 {
-  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE|-n LINES] [-f] <file> [filters...]\n", $progname);
+  fprintf($fd, "Usage: %s [-c COLS] [-S|-B SIZE|-n LINES] [-W all] [-f] <file> [filters...]\n", $progname);
 }
 
 /**
@@ -76,6 +76,7 @@ $opt_rollback_type = null;
 $opt_rollback_amount = 5;
 $opt_follow = false;
 $opt_filter = array();
+$opt_lookup = "none";
 $files = array();
 
 $local_args = $argv;
@@ -139,6 +140,12 @@ while (($k = array_search("-f", $local_args)) !== false) {
   array_splice($local_args, $k, 1);
 }
 
+/* read command line switch "-W" */
+while (($k = array_search("-W", $local_args)) !== false) {
+  $opt_lookup = (isset($local_args[$k + 1]) ? $local_args[$k + 1] : null);
+  array_splice($local_args, $k, 2);
+}
+
 if ($opt_help) {
   print_usage(STDOUT, $progname);
   exit(0);
@@ -176,6 +183,7 @@ dbg("..  opt_cols = " . ($opt_cols !== null ? $opt_cols : "(auto)"));
 dbg("..  opt_rollback_type = " . ($opt_rollback_type !== null ? $opt_rollback_type : "(lines)"));
 dbg("..  opt_rollback_amount = " . $opt_rollback_amount);
 dbg("..  opt_follow = " . ($opt_follow ? "true" : "false"));
+dbg("..  opt_lookup = " . $opt_lookup);
 dbg("..  opt_filter = " . json_encode($opt_filter));
 
 /* ------------------------------------------------------------------------ */
@@ -195,6 +203,12 @@ if ($opt_cols === null) {
       dbg(".. detected screen columns: " . $opt_cols);
     });
   }
+}
+
+/* pull the lookup groups if configured */
+$netlookup = null;
+if ($opt_lookup != "") {
+  $netlookup = WTools::fetchNetworkLookupCached(explode(",", $opt_lookup));
 }
 
 /* read first command argument (file name) */
@@ -484,12 +498,16 @@ while (($str = $tail->read()) !== false) {
   // $slot_1 = sprintf("%-15s %s",
       // ;
 
+  $net_name = ($netlookup ? $netlookup->lookup($regp['ip']) : null);
+
+  $ctl_char = ($net_name ? "@" : ($regp['peer'] != "" ? ">" : ""));
+
   // print formatted line
   //                ts  p   ip   pt st sz tm    rq u r a
   $line = sprintf("%8s %s%-40s %-7s %s %s %s %-40s%s%s%s",
       /* ts */ $regp['time'],
-      /* pp */ ($regp['peer'] != "" ? "\x1b[33m>\x1b[m" : " "),
-      /* ip */ $regp['ip'],
+      /* pp */ ($ctl_char ? "\x1b[33m" . $ctl_char . "\x1b[m" : " "),
+      /* ip */ ($net_name ?: $regp['ip']),
       /* pt */ ($regp['proto'] != "" ? $regp['proto'] : "PLAIN"),
       /* st */ $fmt_http_status($regp['status']),
       /* sz */ $fmt_sent_size($regp['size']),
