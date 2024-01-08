@@ -60,22 +60,22 @@ test_script_exec(1, array(
 /* run the full analysis of the data file */
 test_script_exec(2, array(
     './scripts/tail_http_access_log.php -S -c 999 ' .
-      './tests/standalone/test_tail_http_access_log.data.log',
+        './tests/standalone/test_tail_http_access_log.data.log',
   ), "test_tail_http_access_log.case1");
 
 /* ------------------------------------------------------------------------ */
 
 /* check the rollbacking */
 test_script_exec(3, array(
-  'echo "# -B 99"',
-  './scripts/tail_http_access_log.php -B 99 -c 999 ' .
-      './tests/standalone/test_tail_http_access_log.data.log',
-  'echo "# -B 100"',
-  './scripts/tail_http_access_log.php -B 100 -c 999 ' .
-      './tests/standalone/test_tail_http_access_log.data.log',
-  'echo "# -B 101"',
-  './scripts/tail_http_access_log.php -B 101 -c 999 ' .
-      './tests/standalone/test_tail_http_access_log.data.log',
+    'echo "# -B 99"',
+    './scripts/tail_http_access_log.php -B 99 -c 999 ' .
+        './tests/standalone/test_tail_http_access_log.data.log',
+    'echo "# -B 100"',
+    './scripts/tail_http_access_log.php -B 100 -c 999 ' .
+        './tests/standalone/test_tail_http_access_log.data.log',
+    'echo "# -B 101"',
+    './scripts/tail_http_access_log.php -B 101 -c 999 ' .
+        './tests/standalone/test_tail_http_access_log.data.log',
   ), "test_tail_http_access_log.case2");
 
 print "[+] All tests successfull\n";

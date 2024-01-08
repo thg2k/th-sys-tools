@@ -103,6 +103,7 @@ while (($k = array_search("-c", $local_args)) !== false) {
 while (($k = array_search("-S", $local_args)) !== false) {
   if (($opt_rollback_type !== null) && ($opt_rollback_type != "-S"))
     err("Command line options '-S' and '$opt_rollback_type' are incompatible");
+  /** @var string */
   $opt_rollback_type = "-S";
   array_splice($local_args, $k, 1);
 }

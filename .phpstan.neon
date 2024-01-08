@@ -1,5 +1,5 @@
 parameters:
-	level: 1
+	level: 3
 	phpVersion: 70100
 	treatPhpDocTypesAsCertain: false
 	reportUnmatchedIgnoredErrors: false

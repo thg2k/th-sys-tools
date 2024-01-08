@@ -1,4 +1,7 @@
 <?php
+/**
+ * ...
+ */
 
 /**
  * ...
@@ -30,7 +33,7 @@ class Inotify {
    *
    * @param string $pathname ...
    * @param int $mask ...
-   * @return array ...
+   * @return int ...
    */
   public function addWatch($pathname, $mask) {
     return inotify_add_watch($this->_inotify, $pathname, $mask);
@@ -108,6 +111,11 @@ class Tail {
     }
   }
 
+  /**
+   * ...
+   *
+   * @return void
+   */
   public function rollback() {
     fseek($this->_fd, 0, SEEK_SET);
   }
@@ -135,7 +143,7 @@ class Tail {
   /**
    * ...
    *
-   * @return string ...
+   * @return string|false ...
    */
   public function read() {
     do {
@@ -213,8 +221,10 @@ class WTools {
    *
    * @param string $str ...
    * @return array{
+   *    stamp: int,
    *    peer: string,
    *    ip: string,
+   *    user: string,
    *    proto: string,
    *    date: string,
    *    time: string,
@@ -223,10 +233,9 @@ class WTools {
    *    size: int,
    *    referer: ?string,
    *    agent: ?string,
-   *    duration: int} ...
+   *    duration: ?int}|false ...
    */
-  public static function parseAccessLog_th_lf($str)
-  {
+  public static function parseAccessLog_th_lf($str) {
     // basic?
     //     IP USER IDENT [REQ_TIME] "REQ" STATUS SIZE
     //
@@ -243,7 +252,7 @@ class WTools {
     //
     if (!preg_match('{^' .
         // peer available only in: th_lf_3
-        '(?:(?P<peer>[0-9.a-f:]+)>)?' .       // peer:     172.71.26.115
+        '(?:(?P<peer>[0-9.a-f:]+)>)?' .       // peer?:    172.71.26.115
         '(?P<ip>[0-9.a-f:]+) ' .              // ip:       81.202.254.26
         '(?P<user>[^ ]+) ' .                  // user:     WonderSeller
         '(?P<proto>[^ ]+) ' .                 // proto:    TLSv1.2
@@ -262,6 +271,22 @@ class WTools {
         ')?$}',
         $str, $regp))
       return false;
+    /**
+     * @var array{
+     *    peer: ?non-empty-string,
+     *    ip: non-empty-string,
+     *    user: non-empty-string,
+     *    proto: non-empty-string,
+     *    date: non-empty-string,
+     *    time: non-empty-string,
+     *    zone: non-empty-string,
+     *    req: non-empty-string,
+     *    status: numeric-string,
+     *    size: non-empty-string,
+     *    referer: non-empty-string,
+     *    agent: non-empty-string,
+     *    duration?: numeric-string} $regp
+     */
 
     $stamp = \DateTime::createFromFormat("d/M/Y G:i:s P",
         $regp['date'] . " " . $regp['time'] . " " . $regp['zone']);
