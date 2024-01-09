@@ -1,6 +1,6 @@
 # ChangeLog
 
-## Version 0.4.0 -- xx/xx/xxxx
+## Version 0.4.0 -- 09/01/2024
 
  - Added 'xcomposer' bash function.
  - Various new features and fixes to the 'gitlab_docker_manager' command.

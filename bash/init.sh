@@ -1,4 +1,4 @@
-_th_sys_tools_version="0.4.0-dev"
+_th_sys_tools_version="0.4.0"
 _th_sys_tools_root=$(readlink -f ${BASH_SOURCE[0]})
 _th_sys_tools_root=${_th_sys_tools_root%/bash/init.sh}
 
